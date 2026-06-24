@@ -48,6 +48,7 @@ struct SettingsView: View {
                     Text("Fallback: External resolver for platforms not supported by local resolution. Most platforms work without this.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
 
                 Section("Files") {
                     Stepper(

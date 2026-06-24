@@ -341,7 +341,7 @@ final class DownloadManager: NSObject, ObservableObject {
     ) async {
         do {
             let response = try await resolver.resolve(
-                sourceURL: sourceURL,
+                url: sourceURL,
                 template: template,
                 argumentOverride: argumentOverride,
                 endpoint: endpoint,
@@ -612,15 +612,8 @@ final class DownloadManager: NSObject, ObservableObject {
         URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
     }
 
-    private nonisolated static let directExtensions: Set<String> = [
-        "aac", "aiff", "avi", "flac", "m4a", "m4v", "mkv", "mov", "mp3",
-        "mp4", "mpeg", "mpg", "ogg", "opus", "pdf", "wav", "webm", "zip"
-    ]
-
     nonisolated static func isDirectDownloadURL(_ urlString: String) -> Bool {
-        guard let url = URL(string: urlString) else { return false }
-        let ext = url.pathExtension.lowercased()
-        return directExtensions.contains(ext)
+        BackendResolver.isDirectDownloadURL(urlString)
     }
 }
 

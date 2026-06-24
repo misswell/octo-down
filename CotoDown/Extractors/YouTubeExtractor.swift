@@ -396,7 +396,7 @@ final class YouTubeExtractor: NSObject, VideoExtractor {
                 \(funcBody)
                 var result = (function(a) {
                     a = a.split("");
-                    \(extractFunctionBody(from: funcBody))
+                    \(self.extractFunctionBody(from: funcBody))
                     return a.join("");
                 })("\(input)");
                 result;

@@ -48,6 +48,34 @@ struct ResolvedFormatInfo: Decodable, Equatable, Identifiable {
         return "-f \(id)/b"
     }
 
+    init(
+        id: String,
+        fileExtension: String?,
+        resolution: String?,
+        height: Int?,
+        fps: Double?,
+        filesizeBytes: Int64?,
+        bitrateKbps: Double?,
+        note: String?,
+        videoCodec: String?,
+        audioCodec: String?,
+        hasVideo: Bool,
+        hasAudio: Bool
+    ) {
+        self.id = id
+        self.fileExtension = fileExtension
+        self.resolution = resolution
+        self.height = height
+        self.fps = fps
+        self.filesizeBytes = filesizeBytes
+        self.bitrateKbps = bitrateKbps
+        self.note = note
+        self.videoCodec = videoCodec
+        self.audioCodec = audioCodec
+        self.hasVideo = hasVideo
+        self.hasAudio = hasAudio
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -134,6 +162,17 @@ enum BackendResolverError: LocalizedError {
 }
 
 struct BackendResolver {
+    private static let directExtensions: Set<String> = [
+        "aac", "aiff", "avi", "flac", "m4a", "m4v", "mkv", "mov", "mp3",
+        "mp4", "mpeg", "mpg", "ogg", "opus", "pdf", "wav", "webm", "zip"
+    ]
+
+    static func isDirectDownloadURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        let ext = url.pathExtension.lowercased()
+        return directExtensions.contains(ext)
+    }
+
     /// Check if a URL needs resolver service (YouTube, etc.)
     static func needsResolver(_ urlString: String) -> Bool {
         guard let url = URL(string: urlString) else { return false }
@@ -148,7 +187,7 @@ struct BackendResolver {
     
     /// Get a user-friendly message about whether a URL can be downloaded
     static func downloadStatusMessage(for urlString: String, hasResolver: Bool) -> String {
-        if isDirectDownloadURL(urlString) {
+        if Self.isDirectDownloadURL(urlString) {
             return "✅ Direct download - no resolver needed"
         }
         

@@ -28,6 +28,15 @@
 		5D0E00000000000000000015 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000035 /* LibraryView.swift */; };
 		5D0E00000000000000000016 /* ResolverHealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000036 /* ResolverHealthService.swift */; };
 		5D0E00000000000000000017 /* AppConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000037 /* AppConfigurationService.swift */; };
+		5D0E00000000000000000018 /* LocalVideoResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000038 /* LocalVideoResolver.swift */; };
+		5D0E00000000000000000019 /* VideoResolverService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000039 /* VideoResolverService.swift */; };
+		5D0E0000000000000000001A /* VideoURLInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000003A /* VideoURLInterceptor.swift */; };
+		5D0E000000000000000000C8 /* ExtractorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C1 /* ExtractorProtocol.swift */; };
+		5D0E000000000000000000C9 /* ExtractorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C2 /* ExtractorManager.swift */; };
+		5D0E000000000000000000CA /* YouTubeExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C3 /* YouTubeExtractor.swift */; };
+		5D0E000000000000000000CB /* BilibiliExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C4 /* BilibiliExtractor.swift */; };
+		5D0E000000000000000000CC /* DouyinExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C5 /* DouyinExtractor.swift */; };
+		5D0E000000000000000000CD /* XiaohongshuExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C6 /* XiaohongshuExtractor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +88,15 @@
 		5D0E00000000000000000035 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		5D0E00000000000000000036 /* ResolverHealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolverHealthService.swift; sourceTree = "<group>"; };
 		5D0E00000000000000000037 /* AppConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigurationService.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000038 /* LocalVideoResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalVideoResolver.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000039 /* VideoResolverService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoResolverService.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000003A /* VideoURLInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoURLInterceptor.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C1 /* ExtractorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractorProtocol.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C2 /* ExtractorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractorManager.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C3 /* YouTubeExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeExtractor.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C4 /* BilibiliExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BilibiliExtractor.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C5 /* DouyinExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DouyinExtractor.swift; sourceTree = "<group>"; };
+		5D0E000000000000000000C6 /* XiaohongshuExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XiaohongshuExtractor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +142,7 @@
 				5D0E00000000000000000032 /* AppDelegate.swift */,
 				5D0E0000000000000000002C /* Info.plist */,
 				5D0E00000000000000000060 /* Models */,
+				5D0E000000000000000000C0 /* Extractors */,
 				5D0E00000000000000000061 /* Services */,
 				5D0E00000000000000000062 /* Views */,
 				5D0E00000000000000000031 /* Assets.xcassets */,
@@ -159,8 +178,24 @@
 				5D0E00000000000000000034 /* FileLibraryStore.swift */,
 				5D0E00000000000000000036 /* ResolverHealthService.swift */,
 				5D0E00000000000000000037 /* AppConfigurationService.swift */,
+				5D0E00000000000000000038 /* LocalVideoResolver.swift */,
+				5D0E00000000000000000039 /* VideoResolverService.swift */,
+				5D0E0000000000000000003A /* VideoURLInterceptor.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		5D0E000000000000000000C0 /* Extractors */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E000000000000000000C1 /* ExtractorProtocol.swift */,
+				5D0E000000000000000000C2 /* ExtractorManager.swift */,
+				5D0E000000000000000000C3 /* YouTubeExtractor.swift */,
+				5D0E000000000000000000C4 /* BilibiliExtractor.swift */,
+				5D0E000000000000000000C5 /* DouyinExtractor.swift */,
+				5D0E000000000000000000C6 /* XiaohongshuExtractor.swift */,
+			);
+			path = Extractors;
 			sourceTree = "<group>";
 		};
 		5D0E00000000000000000062 /* Views */ = {
@@ -285,6 +320,15 @@
 				5D0E00000000000000000014 /* FileLibraryStore.swift in Sources */,
 				5D0E00000000000000000016 /* ResolverHealthService.swift in Sources */,
 				5D0E00000000000000000017 /* AppConfigurationService.swift in Sources */,
+				5D0E00000000000000000018 /* LocalVideoResolver.swift in Sources */,
+				5D0E00000000000000000019 /* VideoResolverService.swift in Sources */,
+				5D0E0000000000000000001A /* VideoURLInterceptor.swift in Sources */,
+				5D0E000000000000000000C8 /* ExtractorProtocol.swift in Sources */,
+				5D0E000000000000000000C9 /* ExtractorManager.swift in Sources */,
+				5D0E000000000000000000CA /* YouTubeExtractor.swift in Sources */,
+				5D0E000000000000000000CB /* BilibiliExtractor.swift in Sources */,
+				5D0E000000000000000000CC /* DouyinExtractor.swift in Sources */,
+				5D0E000000000000000000CD /* XiaohongshuExtractor.swift in Sources */,
 				5D0E00000000000000000004 /* BackendResolver.swift in Sources */,
 				5D0E00000000000000000005 /* DownloadManager.swift in Sources */,
 				5D0E00000000000000000006 /* RootView.swift in Sources */,

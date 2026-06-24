@@ -54,7 +54,8 @@ final class BilibiliExtractor: VideoExtractor {
         let duration = videoInfo["duration"] as? Double
         
         // Get video cid
-        guard let cid = videoInfo["cid"] as? Int ?? videoInfo["pages"]?.first?["cid"] as? Int else {
+        let pageCID = (videoInfo["pages"] as? [[String: Any]])?.first?["cid"] as? Int
+        guard let cid = (videoInfo["cid"] as? Int) ?? pageCID else {
             throw ExtractionError.parseError("Could not find video cid")
         }
         
