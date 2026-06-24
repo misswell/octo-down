@@ -1,0 +1,29 @@
+services:
+  resolver:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      PUBLIC_BASE_URL: http://localhost:8787
+      RESOLVER_MODE: direct
+      RESOLVER_TOKEN: ""
+      YT_DLP_COOKIES_FILE: ""
+      YT_DLP_DOWNLOADER: ""
+      YT_DLP_DOWNLOADER_ARGS: ""
+      MAX_PLAYLIST_ITEMS: 20
+      DOWNLOAD_DIR: /data/downloads
+      HOSTED_FILE_TTL_HOURS: 72
+      CLEANUP_INTERVAL_MINUTES: 60
+    volumes:
+      - resolver-downloads:/data/downloads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const h=process.env.RESOLVER_TOKEN?{authorization:'Bearer '+process.env.RESOLVER_TOKEN}:{}; fetch('http://127.0.0.1:8787/health',{headers:h}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  resolver-downloads:

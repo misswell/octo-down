@@ -1,0 +1,571 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5D0E00000000000000000001 /* CotoDownApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000021 /* CotoDownApp.swift */; };
+		5D0E00000000000000000002 /* DownloadTaskItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000022 /* DownloadTaskItem.swift */; };
+		5D0E00000000000000000003 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000023 /* AppSettings.swift */; };
+		5D0E00000000000000000004 /* BackendResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000024 /* BackendResolver.swift */; };
+		5D0E00000000000000000005 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000025 /* DownloadManager.swift */; };
+		5D0E00000000000000000006 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000026 /* RootView.swift */; };
+		5D0E00000000000000000007 /* NewDownloadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000027 /* NewDownloadView.swift */; };
+		5D0E00000000000000000008 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000028 /* DownloadsView.swift */; };
+		5D0E00000000000000000009 /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000029 /* TaskRowView.swift */; };
+		5D0E0000000000000000000A /* TemplatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000002A /* TemplatesView.swift */; };
+		5D0E0000000000000000000B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000002B /* SettingsView.swift */; };
+		5D0E0000000000000000000C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000031 /* Assets.xcassets */; };
+		5D0E0000000000000000000D /* IncomingDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000002D /* IncomingDownload.swift */; };
+		5D0E0000000000000000000E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000002E /* ShareViewController.swift */; };
+		5D0E0000000000000000000F /* CotoDownShare.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000011 /* CotoDownShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5D0E00000000000000000012 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000032 /* AppDelegate.swift */; };
+		5D0E00000000000000000013 /* NotificationCenterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000033 /* NotificationCenterService.swift */; };
+		5D0E00000000000000000014 /* FileLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000034 /* FileLibraryStore.swift */; };
+		5D0E00000000000000000015 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000035 /* LibraryView.swift */; };
+		5D0E00000000000000000016 /* ResolverHealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000036 /* ResolverHealthService.swift */; };
+		5D0E00000000000000000017 /* AppConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000037 /* AppConfigurationService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5D0E000000000000000000B1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5D0E00000000000000000080 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5D0E00000000000000000073;
+			remoteInfo = CotoDownShare;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5D0E00000000000000000043 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5D0E0000000000000000000F /* CotoDownShare.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		5D0E00000000000000000010 /* CotoDown.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CotoDown.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D0E00000000000000000011 /* CotoDownShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CotoDownShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D0E00000000000000000021 /* CotoDownApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CotoDownApp.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000022 /* DownloadTaskItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTaskItem.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000023 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000024 /* BackendResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendResolver.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000025 /* DownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManager.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000026 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000027 /* NewDownloadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewDownloadView.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000028 /* DownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsView.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000029 /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000002A /* TemplatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplatesView.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000002B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000002C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5D0E0000000000000000002D /* IncomingDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingDownload.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000002E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000002F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5D0E00000000000000000031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5D0E00000000000000000032 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000033 /* NotificationCenterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterService.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000034 /* FileLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLibraryStore.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000035 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000036 /* ResolverHealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolverHealthService.swift; sourceTree = "<group>"; };
+		5D0E00000000000000000037 /* AppConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigurationService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5D0E00000000000000000040 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5D0E00000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5D0E00000000000000000050 = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000052 /* CotoDown */,
+				5D0E00000000000000000053 /* CotoDownShare */,
+				5D0E00000000000000000051 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000051 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000010 /* CotoDown.app */,
+				5D0E00000000000000000011 /* CotoDownShare.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000052 /* CotoDown */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000021 /* CotoDownApp.swift */,
+				5D0E00000000000000000032 /* AppDelegate.swift */,
+				5D0E0000000000000000002C /* Info.plist */,
+				5D0E00000000000000000060 /* Models */,
+				5D0E00000000000000000061 /* Services */,
+				5D0E00000000000000000062 /* Views */,
+				5D0E00000000000000000031 /* Assets.xcassets */,
+			);
+			path = CotoDown;
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000053 /* CotoDownShare */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E0000000000000000002E /* ShareViewController.swift */,
+				5D0E0000000000000000002F /* Info.plist */,
+			);
+			path = CotoDownShare;
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000060 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000022 /* DownloadTaskItem.swift */,
+				5D0E00000000000000000023 /* AppSettings.swift */,
+				5D0E0000000000000000002D /* IncomingDownload.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000061 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000024 /* BackendResolver.swift */,
+				5D0E00000000000000000025 /* DownloadManager.swift */,
+				5D0E00000000000000000033 /* NotificationCenterService.swift */,
+				5D0E00000000000000000034 /* FileLibraryStore.swift */,
+				5D0E00000000000000000036 /* ResolverHealthService.swift */,
+				5D0E00000000000000000037 /* AppConfigurationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		5D0E00000000000000000062 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				5D0E00000000000000000026 /* RootView.swift */,
+				5D0E00000000000000000027 /* NewDownloadView.swift */,
+				5D0E00000000000000000028 /* DownloadsView.swift */,
+				5D0E00000000000000000029 /* TaskRowView.swift */,
+				5D0E00000000000000000035 /* LibraryView.swift */,
+				5D0E0000000000000000002A /* TemplatesView.swift */,
+				5D0E0000000000000000002B /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5D0E00000000000000000070 /* CotoDown */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D0E000000000000000000A2 /* Build configuration list for PBXNativeTarget "CotoDown" */;
+			buildPhases = (
+				5D0E00000000000000000071 /* Sources */,
+				5D0E00000000000000000040 /* Frameworks */,
+				5D0E00000000000000000072 /* Resources */,
+				5D0E00000000000000000043 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5D0E000000000000000000B2 /* PBXTargetDependency */,
+			);
+			name = CotoDown;
+			productName = CotoDown;
+			productReference = 5D0E00000000000000000010 /* CotoDown.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5D0E00000000000000000073 /* CotoDownShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D0E000000000000000000A3 /* Build configuration list for PBXNativeTarget "CotoDownShare" */;
+			buildPhases = (
+				5D0E00000000000000000074 /* Sources */,
+				5D0E00000000000000000041 /* Frameworks */,
+				5D0E00000000000000000075 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CotoDownShare;
+			productName = CotoDownShare;
+			productReference = 5D0E00000000000000000011 /* CotoDownShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5D0E00000000000000000080 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					5D0E00000000000000000070 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					5D0E00000000000000000073 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 5D0E000000000000000000A1 /* Build configuration list for PBXProject "CotoDown" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5D0E00000000000000000050;
+			productRefGroup = 5D0E00000000000000000051 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5D0E00000000000000000070 /* CotoDown */,
+				5D0E00000000000000000073 /* CotoDownShare */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5D0E00000000000000000072 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D0E0000000000000000000C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5D0E00000000000000000075 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5D0E00000000000000000071 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D0E00000000000000000001 /* CotoDownApp.swift in Sources */,
+				5D0E00000000000000000002 /* DownloadTaskItem.swift in Sources */,
+				5D0E00000000000000000003 /* AppSettings.swift in Sources */,
+				5D0E0000000000000000000D /* IncomingDownload.swift in Sources */,
+				5D0E00000000000000000012 /* AppDelegate.swift in Sources */,
+				5D0E00000000000000000013 /* NotificationCenterService.swift in Sources */,
+				5D0E00000000000000000014 /* FileLibraryStore.swift in Sources */,
+				5D0E00000000000000000016 /* ResolverHealthService.swift in Sources */,
+				5D0E00000000000000000017 /* AppConfigurationService.swift in Sources */,
+				5D0E00000000000000000004 /* BackendResolver.swift in Sources */,
+				5D0E00000000000000000005 /* DownloadManager.swift in Sources */,
+				5D0E00000000000000000006 /* RootView.swift in Sources */,
+				5D0E00000000000000000007 /* NewDownloadView.swift in Sources */,
+				5D0E00000000000000000008 /* DownloadsView.swift in Sources */,
+				5D0E00000000000000000009 /* TaskRowView.swift in Sources */,
+				5D0E00000000000000000015 /* LibraryView.swift in Sources */,
+				5D0E0000000000000000000A /* TemplatesView.swift in Sources */,
+				5D0E0000000000000000000B /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5D0E00000000000000000074 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D0E0000000000000000000E /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5D0E000000000000000000B2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5D0E00000000000000000073 /* CotoDownShare */;
+			targetProxy = 5D0E000000000000000000B1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		5D0E00000000000000000091 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5D0E00000000000000000092 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5D0E00000000000000000093 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CotoDown/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liuguofeng.cotodown;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5D0E00000000000000000094 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CotoDown/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liuguofeng.cotodown;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5D0E00000000000000000095 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CotoDownShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liuguofeng.cotodown.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5D0E00000000000000000096 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U8U443D7ZL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CotoDownShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liuguofeng.cotodown.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5D0E000000000000000000A1 /* Build configuration list for PBXProject "CotoDown" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D0E00000000000000000091 /* Debug */,
+				5D0E00000000000000000092 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5D0E000000000000000000A2 /* Build configuration list for PBXNativeTarget "CotoDown" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D0E00000000000000000093 /* Debug */,
+				5D0E00000000000000000094 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5D0E000000000000000000A3 /* Build configuration list for PBXNativeTarget "CotoDownShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D0E00000000000000000095 /* Debug */,
+				5D0E00000000000000000096 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5D0E00000000000000000080 /* Project object */;
+}
