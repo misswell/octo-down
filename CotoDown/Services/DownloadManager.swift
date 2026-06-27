@@ -526,7 +526,9 @@ final class DownloadManager: NSObject, ObservableObject {
             $0.resumeData = nil
         }
 
-        let task = session.downloadTask(with: url)
+        var request = URLRequest(url: url)
+        CookieStore.apply(to: &request, referer: referer(for: url, sourceURL: tasks.first(where: { $0.id == itemID })?.sourceURL))
+        let task = session.downloadTask(with: request)
         task.taskDescription = Self.taskDescription(id: itemID, fileName: fileName)
         runningTasks[itemID] = task
         taskIDMap[task.taskIdentifier] = itemID
@@ -916,6 +918,20 @@ final class DownloadManager: NSObject, ObservableObject {
     nonisolated static func isHLSPlaylistURL(_ urlString: String) -> Bool {
         guard let url = URL(string: urlString) else { return false }
         return url.pathExtension.lowercased() == "m3u8"
+    }
+
+    private func referer(for mediaURL: URL, sourceURL: String?) -> String? {
+        if mediaURL.host?.contains("bilivideo") == true {
+            return "https://www.bilibili.com/"
+        }
+        guard let sourceURL,
+              let source = URL(string: sourceURL),
+              let scheme = source.scheme,
+              let host = source.host
+        else {
+            return nil
+        }
+        return "\(scheme)://\(host)/"
     }
 
     private nonisolated static func dashProgressMessage(for stage: DASHMediaDownloadProgress.Stage) -> String {

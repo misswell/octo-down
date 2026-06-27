@@ -68,6 +68,21 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Cookies") {
+                    TextEditor(text: $settings.platformCookies)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.footnote.monospaced())
+                        .frame(minHeight: 120)
+
+                    Button(role: .destructive) {
+                        settings.platformCookies = ""
+                    } label: {
+                        Label("Clear Cookies", systemImage: "trash")
+                    }
+                    .disabled(settings.platformCookies.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
                 Section("Notifications") {
                     Toggle("Download alerts", isOn: $settings.notificationsEnabled)
                         .onChange(of: settings.notificationsEnabled) { _, enabled in

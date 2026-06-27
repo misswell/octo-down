@@ -74,10 +74,7 @@ struct DASHMediaDownloader {
 
     private func download(mediaURL: URL, pageURL: URL?, to destinationURL: URL) async throws -> URL {
         var request = URLRequest(url: mediaURL)
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-        if let referer = Self.referer(for: mediaURL, pageURL: pageURL) {
-            request.setValue(referer, forHTTPHeaderField: "Referer")
-        }
+        CookieStore.apply(to: &request, referer: Self.referer(for: mediaURL, pageURL: pageURL))
 
         let (temporaryURL, response) = try await session.download(for: request)
         try Self.validate(response)
@@ -164,5 +161,4 @@ struct DASHMediaDownloader {
         return pageURL.absoluteString
     }
 
-    private static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 }

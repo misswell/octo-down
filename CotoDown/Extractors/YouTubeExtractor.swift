@@ -11,12 +11,7 @@ final class YouTubeExtractor: NSObject, VideoExtractor {
     private var playerJS: String?
     
     override init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.httpAdditionalHeaders = [
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9"
-        ]
-        self.session = URLSession(configuration: configuration)
+        self.session = CookieStore.configuredSession()
         super.init()
     }
     
@@ -40,7 +35,10 @@ final class YouTubeExtractor: NSObject, VideoExtractor {
             throw ExtractionError.invalidURL
         }
         
-        let (data, response) = try await session.data(from: requestURL)
+        var request = URLRequest(url: requestURL)
+        CookieStore.apply(to: &request, referer: "https://www.youtube.com/")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -257,7 +255,9 @@ final class YouTubeExtractor: NSObject, VideoExtractor {
             throw ExtractionError.parseError("Invalid player JS URL")
         }
         
-        let (jsData, _) = try await session.data(from: playerJSURL)
+        var request = URLRequest(url: playerJSURL)
+        CookieStore.apply(to: &request, referer: "https://www.youtube.com/")
+        let (jsData, _) = try await session.data(for: request)
         guard let playerJS = String(data: jsData, encoding: .utf8) else {
             throw ExtractionError.parseError("Could not decode player JS")
         }

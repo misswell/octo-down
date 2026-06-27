@@ -20,12 +20,7 @@ final class BilibiliExtractor: VideoExtractor {
     ]
     
     init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.httpAdditionalHeaders = [
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.bilibili.com"
-        ]
-        self.session = URLSession(configuration: configuration)
+        self.session = CookieStore.configuredSession(referer: "https://www.bilibili.com")
     }
     
     func canExtract(url: String) -> Bool {
@@ -93,7 +88,7 @@ final class BilibiliExtractor: VideoExtractor {
         
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        CookieStore.apply(to: &request, referer: "https://www.bilibili.com")
         
         let (_, response) = try await session.data(for: request)
         
@@ -142,7 +137,9 @@ final class BilibiliExtractor: VideoExtractor {
             throw ExtractionError.invalidURL
         }
         
-        let (data, response) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        CookieStore.apply(to: &request, referer: "https://www.bilibili.com")
+        let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -183,7 +180,9 @@ final class BilibiliExtractor: VideoExtractor {
             throw ExtractionError.invalidURL
         }
         
-        let (data, response) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        CookieStore.apply(to: &request, referer: "https://www.bilibili.com/video/\(bvid)")
+        let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -214,7 +213,9 @@ final class BilibiliExtractor: VideoExtractor {
             throw ExtractionError.invalidURL
         }
         
-        let (data, _) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        CookieStore.apply(to: &request, referer: "https://www.bilibili.com")
+        let (data, _) = try await session.data(for: request)
         
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let navData = json["data"] as? [String: Any],

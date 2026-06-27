@@ -7,15 +7,9 @@ final class DouyinExtractor: VideoExtractor {
     let platformName = "Douyin"
     
     private let session: URLSession
-    private var cookies: [HTTPCookie] = []
     
     init() {
-        let configuration = URLSessionConfiguration.default
-        configuration.httpAdditionalHeaders = [
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.douyin.com/"
-        ]
-        self.session = URLSession(configuration: configuration)
+        self.session = CookieStore.configuredSession(referer: "https://www.douyin.com/")
     }
     
     func canExtract(url: String) -> Bool {
@@ -53,7 +47,7 @@ final class DouyinExtractor: VideoExtractor {
         
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        CookieStore.apply(to: &request, referer: "https://www.douyin.com/")
         
         let (_, response) = try await session.data(for: request)
         
@@ -99,13 +93,7 @@ final class DouyinExtractor: VideoExtractor {
         }
         
         var request = URLRequest(url: url)
-        request.setValue("https://www.douyin.com/", forHTTPHeaderField: "Referer")
-        
-        // Add cookies if available
-        if !cookies.isEmpty {
-            let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        }
+        CookieStore.apply(to: &request, referer: "https://www.douyin.com/")
         
         let (data, response) = try await session.data(for: request)
         

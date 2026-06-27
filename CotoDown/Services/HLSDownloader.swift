@@ -68,7 +68,9 @@ struct HLSDownloader {
 
         for (index, segmentURL) in mediaPlaylist.segments.enumerated() {
             try Task.checkCancellation()
-            let (data, response) = try await session.data(from: segmentURL)
+            var request = URLRequest(url: segmentURL)
+            CookieStore.apply(to: &request, referer: playlistURL.absoluteString)
+            let (data, response) = try await session.data(for: request)
             try Self.validate(response)
             try handle.write(contentsOf: data)
             receivedBytes += Int64(data.count)
@@ -95,7 +97,9 @@ struct HLSDownloader {
     }
 
     private func loadPlaylist(from url: URL) async throws -> ParsedPlaylist {
-        let (data, response) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        CookieStore.apply(to: &request)
+        let (data, response) = try await session.data(for: request)
         try Self.validate(response)
         guard let text = String(data: data, encoding: .utf8) else {
             throw HLSDownloadError.invalidPlaylist

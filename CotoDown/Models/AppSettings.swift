@@ -51,6 +51,13 @@ final class AppSettings: ObservableObject {
         didSet { save() }
     }
 
+    @Published var platformCookies: String {
+        didSet {
+            save()
+            CookieStore.installIntoSharedStorage()
+        }
+    }
+
     @Published var templates: [DownloadTemplate] {
         didSet { save() }
     }
@@ -78,6 +85,8 @@ final class AppSettings: ObservableObject {
         resolverEndpoint = defaults.string(forKey: endpointKey) ?? ""
         resolverDelivery = ResolverDelivery(rawValue: defaults.string(forKey: deliveryKey) ?? "") ?? .direct
         resolverToken = defaults.string(forKey: tokenKey) ?? ""
+        platformCookies = defaults.string(forKey: CookieStore.storageKey) ?? ""
+        CookieStore.installIntoSharedStorage()
         notificationsEnabled = Self.notificationsEnabledPreference
         maxConcurrentDownloads = Self.maxConcurrentDownloadsPreference
 
@@ -113,6 +122,7 @@ final class AppSettings: ObservableObject {
         resolverEndpoint = configuration.resolverEndpoint
         resolverDelivery = configuration.resolverDelivery
         resolverToken = configuration.resolverToken ?? ""
+        CookieStore.installIntoSharedStorage()
         notificationsEnabled = configuration.notificationsEnabled
         maxConcurrentDownloads = Self.clampedMaxConcurrentDownloads(
             configuration.maxConcurrentDownloads ?? Self.defaultMaxConcurrentDownloads
@@ -124,6 +134,7 @@ final class AppSettings: ObservableObject {
         defaults.set(resolverEndpoint, forKey: endpointKey)
         defaults.set(resolverDelivery.rawValue, forKey: deliveryKey)
         defaults.set(resolverToken, forKey: tokenKey)
+        defaults.set(platformCookies, forKey: CookieStore.storageKey)
         defaults.set(notificationsEnabled, forKey: notificationsKey)
         defaults.set(maxConcurrentDownloads, forKey: maxConcurrentDownloadsKey)
         if let data = try? JSONEncoder().encode(templates) {
