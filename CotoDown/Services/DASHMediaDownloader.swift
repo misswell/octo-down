@@ -3,6 +3,9 @@ import Foundation
 
 enum DASHMediaDownloadError: LocalizedError {
     case invalidMediaURL
+    case invalidManifest
+    case unsupportedManifest(String)
+    case noPlayableRepresentations
     case invalidDownloadedMedia
     case exportSessionUnavailable
     case exportFailed
@@ -11,6 +14,12 @@ enum DASHMediaDownloadError: LocalizedError {
         switch self {
         case .invalidMediaURL:
             "Invalid separated media URL."
+        case .invalidManifest:
+            "The DASH manifest could not be parsed."
+        case .unsupportedManifest(let reason):
+            "This DASH manifest is not supported yet: \(reason)."
+        case .noPlayableRepresentations:
+            "The DASH manifest did not contain playable video and audio representations."
         case .invalidDownloadedMedia:
             "Downloaded media tracks could not be read."
         case .exportSessionUnavailable:
@@ -72,6 +81,52 @@ struct DASHMediaDownloader {
         progress(DASHMediaDownloadProgress(stage: .merging, progress: 1))
     }
 
+    func downloadManifestAndMerge(
+        manifestURL: URL,
+        pageURL: URL?,
+        destinationURL: URL,
+        progress: @escaping @Sendable (DASHMediaDownloadProgress) -> Void
+    ) async throws {
+        var request = URLRequest(url: manifestURL)
+        CookieStore.apply(to: &request, referer: pageURL?.absoluteString)
+        let (data, response) = try await session.data(for: request)
+        try Self.validate(response)
+        guard let xml = String(data: data, encoding: .utf8) else {
+            throw DASHMediaDownloadError.invalidManifest
+        }
+
+        let manifest = try DASHManifestParser(manifestURL: manifestURL).parse(xml)
+        let streams = try manifest.bestPlayableStreams()
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coto-down-mpd-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+
+        progress(DASHMediaDownloadProgress(stage: .downloadingVideo, progress: 0.05))
+        let videoFile = try await download(
+            stream: streams.video,
+            pageURL: pageURL ?? manifestURL,
+            to: temporaryDirectory.appendingPathComponent("video.\(streams.video.fileExtension)")
+        ) { streamProgress in
+            progress(DASHMediaDownloadProgress(stage: .downloadingVideo, progress: 0.05 + streamProgress * 0.35))
+        }
+
+        progress(DASHMediaDownloadProgress(stage: .downloadingAudio, progress: 0.45))
+        let audioFile = try await download(
+            stream: streams.audio,
+            pageURL: pageURL ?? manifestURL,
+            to: temporaryDirectory.appendingPathComponent("audio.\(streams.audio.fileExtension)")
+        ) { streamProgress in
+            progress(DASHMediaDownloadProgress(stage: .downloadingAudio, progress: 0.45 + streamProgress * 0.3))
+        }
+
+        progress(DASHMediaDownloadProgress(stage: .merging, progress: 0.8))
+        try await merge(videoURL: videoFile, audioURL: audioFile, destinationURL: destinationURL)
+        progress(DASHMediaDownloadProgress(stage: .merging, progress: 1))
+    }
+
     private func download(mediaURL: URL, pageURL: URL?, to destinationURL: URL) async throws -> URL {
         var request = URLRequest(url: mediaURL)
         CookieStore.apply(to: &request, referer: Self.referer(for: mediaURL, pageURL: pageURL))
@@ -80,6 +135,37 @@ struct DASHMediaDownloader {
         try Self.validate(response)
         try? FileManager.default.removeItem(at: destinationURL)
         try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+        return destinationURL
+    }
+
+    private func download(
+        stream: DASHManifest.Stream,
+        pageURL: URL?,
+        to destinationURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL {
+        try? FileManager.default.removeItem(at: destinationURL)
+
+        if stream.urls.count == 1 {
+            return try await download(mediaURL: stream.urls[0], pageURL: pageURL, to: destinationURL)
+        }
+
+        FileManager.default.createFile(atPath: destinationURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: destinationURL)
+        defer {
+            try? handle.close()
+        }
+
+        for (index, url) in stream.urls.enumerated() {
+            try Task.checkCancellation()
+            var request = URLRequest(url: url)
+            CookieStore.apply(to: &request, referer: pageURL?.absoluteString)
+            let (data, response) = try await session.data(for: request)
+            try Self.validate(response)
+            try handle.write(contentsOf: data)
+            progress(Double(index + 1) / Double(stream.urls.count))
+        }
+
         return destinationURL
     }
 
@@ -161,4 +247,347 @@ struct DASHMediaDownloader {
         return pageURL.absoluteString
     }
 
+}
+
+private struct DASHManifest {
+    struct Stream {
+        enum Kind {
+            case video
+            case audio
+        }
+
+        var kind: Kind
+        var id: String
+        var bandwidth: Int
+        var width: Int?
+        var height: Int?
+        var mimeType: String?
+        var codecs: String?
+        var urls: [URL]
+
+        var fileExtension: String {
+            if mimeType?.contains("webm") == true { return "webm" }
+            if kind == .audio { return "m4a" }
+            return "mp4"
+        }
+    }
+
+    var streams: [Stream]
+
+    func bestPlayableStreams() throws -> (video: Stream, audio: Stream) {
+        guard let video = streams
+            .filter({ $0.kind == .video })
+            .max(by: { lhs, rhs in
+                let lhsHeight = lhs.height ?? 0
+                let rhsHeight = rhs.height ?? 0
+                if lhsHeight == rhsHeight {
+                    return lhs.bandwidth < rhs.bandwidth
+                }
+                return lhsHeight < rhsHeight
+            }),
+              let audio = streams
+            .filter({ $0.kind == .audio })
+            .max(by: { $0.bandwidth < $1.bandwidth })
+        else {
+            throw DASHMediaDownloadError.noPlayableRepresentations
+        }
+
+        return (video, audio)
+    }
+}
+
+private struct DASHSegmentTemplate {
+    var initialization: String?
+    var media: String?
+    var startNumber: Int
+    var duration: Double?
+    var timescale: Double
+}
+
+private final class DASHManifestParser: NSObject, XMLParserDelegate {
+    private struct AdaptationContext {
+        var contentType: String?
+        var mimeType: String?
+        var codecs: String?
+        var baseURL: URL
+        var segmentTemplate: DASHSegmentTemplate?
+    }
+
+    private struct RepresentationContext {
+        var id: String
+        var bandwidth: Int
+        var width: Int?
+        var height: Int?
+        var mimeType: String?
+        var codecs: String?
+        var baseURL: URL
+        var segmentTemplate: DASHSegmentTemplate?
+    }
+
+    private let manifestURL: URL
+    private var rootBaseURL: URL
+    private var manifestDurationSeconds: Double?
+    private var manifestType: String?
+    private var periodBaseURL: URL?
+    private var adaptation: AdaptationContext?
+    private var representation: RepresentationContext?
+    private var baseURLTarget: String?
+    private var baseURLText = ""
+    private var streams: [DASHManifest.Stream] = []
+    private var parseError: Error?
+
+    init(manifestURL: URL) {
+        self.manifestURL = manifestURL
+        rootBaseURL = manifestURL
+    }
+
+    func parse(_ xml: String) throws -> DASHManifest {
+        guard let data = xml.data(using: .utf8) else {
+            throw DASHMediaDownloadError.invalidManifest
+        }
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        guard parser.parse(), parseError == nil else {
+            throw parseError ?? parser.parserError ?? DASHMediaDownloadError.invalidManifest
+        }
+        if manifestType?.lowercased() == "dynamic" {
+            throw DASHMediaDownloadError.unsupportedManifest("live MPD")
+        }
+        return DASHManifest(streams: streams)
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        switch elementName {
+        case "MPD":
+            manifestType = attributeDict["type"]
+            manifestDurationSeconds = Self.durationSeconds(attributeDict["mediaPresentationDuration"])
+        case "Period":
+            periodBaseURL = rootBaseURL
+        case "AdaptationSet":
+            adaptation = AdaptationContext(
+                contentType: attributeDict["contentType"],
+                mimeType: attributeDict["mimeType"],
+                codecs: attributeDict["codecs"],
+                baseURL: periodBaseURL ?? rootBaseURL,
+                segmentTemplate: nil
+            )
+        case "Representation":
+            guard let adaptation else { return }
+            representation = RepresentationContext(
+                id: attributeDict["id"] ?? UUID().uuidString,
+                bandwidth: attributeDict["bandwidth"].flatMap(Int.init) ?? 0,
+                width: attributeDict["width"].flatMap(Int.init),
+                height: attributeDict["height"].flatMap(Int.init),
+                mimeType: attributeDict["mimeType"] ?? adaptation.mimeType,
+                codecs: attributeDict["codecs"] ?? adaptation.codecs,
+                baseURL: adaptation.baseURL,
+                segmentTemplate: adaptation.segmentTemplate
+            )
+        case "SegmentTemplate":
+            let template = DASHSegmentTemplate(
+                initialization: attributeDict["initialization"],
+                media: attributeDict["media"],
+                startNumber: attributeDict["startNumber"].flatMap(Int.init) ?? 1,
+                duration: attributeDict["duration"].flatMap(Double.init),
+                timescale: attributeDict["timescale"].flatMap(Double.init) ?? 1
+            )
+            if representation != nil {
+                representation?.segmentTemplate = template
+            } else {
+                adaptation?.segmentTemplate = template
+            }
+        case "BaseURL":
+            baseURLText = ""
+            if representation != nil {
+                baseURLTarget = "representation"
+            } else if adaptation != nil {
+                baseURLTarget = "adaptation"
+            } else if periodBaseURL != nil {
+                baseURLTarget = "period"
+            } else {
+                baseURLTarget = "root"
+            }
+        default:
+            break
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if baseURLTarget != nil {
+            baseURLText += string
+        }
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        switch elementName {
+        case "BaseURL":
+            applyBaseURL()
+        case "Representation":
+            if let representation, let stream = stream(from: representation) {
+                streams.append(stream)
+            }
+            representation = nil
+        case "AdaptationSet":
+            adaptation = nil
+        case "Period":
+            periodBaseURL = nil
+        default:
+            break
+        }
+    }
+
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+        self.parseError = parseError
+    }
+
+    private func applyBaseURL() {
+        let value = baseURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            baseURLTarget = nil
+            baseURLText = ""
+        }
+        guard !value.isEmpty else { return }
+
+        switch baseURLTarget {
+        case "representation":
+            if let base = URL(string: value, relativeTo: representation?.baseURL ?? rootBaseURL)?.absoluteURL {
+                representation?.baseURL = base
+            }
+        case "adaptation":
+            if let base = URL(string: value, relativeTo: adaptation?.baseURL ?? rootBaseURL)?.absoluteURL {
+                adaptation?.baseURL = base
+            }
+        case "period":
+            if let base = URL(string: value, relativeTo: periodBaseURL ?? rootBaseURL)?.absoluteURL {
+                periodBaseURL = base
+            }
+        case "root":
+            if let base = URL(string: value, relativeTo: rootBaseURL)?.absoluteURL {
+                rootBaseURL = base
+            }
+        default:
+            break
+        }
+    }
+
+    private func stream(from representation: RepresentationContext) -> DASHManifest.Stream? {
+        guard let kind = streamKind(for: representation) else { return nil }
+        let streamURLs: [URL]
+        if let template = representation.segmentTemplate {
+            guard let generated = urls(from: template, representation: representation), !generated.isEmpty else {
+                return nil
+            }
+            streamURLs = generated
+        } else {
+            streamURLs = [representation.baseURL]
+        }
+
+        return DASHManifest.Stream(
+            kind: kind,
+            id: representation.id,
+            bandwidth: representation.bandwidth,
+            width: representation.width,
+            height: representation.height,
+            mimeType: representation.mimeType,
+            codecs: representation.codecs,
+            urls: streamURLs
+        )
+    }
+
+    private func streamKind(for representation: RepresentationContext) -> DASHManifest.Stream.Kind? {
+        let joined = [
+            adaptation?.contentType,
+            representation.mimeType,
+            representation.codecs
+        ]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+
+        if joined.contains("audio") || joined.contains("mp4a") || joined.contains("opus") {
+            return .audio
+        }
+        if joined.contains("video") || representation.width != nil || representation.height != nil {
+            return .video
+        }
+        return nil
+    }
+
+    private func urls(from template: DASHSegmentTemplate, representation: RepresentationContext) -> [URL]? {
+        guard let media = template.media,
+              let duration = template.duration,
+              duration > 0,
+              template.timescale > 0,
+              let manifestDurationSeconds,
+              manifestDurationSeconds > 0
+        else {
+            return nil
+        }
+
+        let segmentSeconds = duration / template.timescale
+        let segmentCount = min(max(Int(ceil(manifestDurationSeconds / segmentSeconds)), 1), 10_000)
+        var urls: [URL] = []
+        if let initialization = template.initialization,
+           let initializationURL = templateURL(initialization, representation: representation, number: nil) {
+            urls.append(initializationURL)
+        }
+
+        for offset in 0..<segmentCount {
+            let number = template.startNumber + offset
+            guard let url = templateURL(media, representation: representation, number: number) else {
+                return nil
+            }
+            urls.append(url)
+        }
+        return urls
+    }
+
+    private func templateURL(_ value: String, representation: RepresentationContext, number: Int?) -> URL? {
+        var path = value.replacingOccurrences(of: "$RepresentationID$", with: representation.id)
+        if let number {
+            path = Self.replaceNumberToken(in: path, number: number)
+        }
+        return URL(string: path, relativeTo: representation.baseURL)?.absoluteURL
+    }
+
+    private static func replaceNumberToken(in value: String, number: Int) -> String {
+        var result = value.replacingOccurrences(of: "$Number$", with: "\(number)")
+        while let range = result.range(of: #"\$Number%0\d+d\$"#, options: .regularExpression) {
+            let token = String(result[range])
+            let widthText = token
+                .replacingOccurrences(of: "$Number%0", with: "")
+                .replacingOccurrences(of: "d$", with: "")
+            let width = Int(widthText) ?? 1
+            let formatted = String(format: "%0\(width)d", number)
+            result.replaceSubrange(range, with: formatted)
+        }
+        return result
+    }
+
+    private static func durationSeconds(_ value: String?) -> Double? {
+        guard let value, value.hasPrefix("P") else { return nil }
+        let pattern = #"P(?:([\d.]+)D)?(?:T(?:([\d.]+)H)?(?:([\d.]+)M)?(?:([\d.]+)S)?)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value))
+        else {
+            return nil
+        }
+
+        func number(at index: Int) -> Double {
+            guard let range = Range(match.range(at: index), in: value) else { return 0 }
+            return Double(value[range]) ?? 0
+        }
+
+        return number(at: 1) * 86_400 + number(at: 2) * 3_600 + number(at: 3) * 60 + number(at: 4)
+    }
 }

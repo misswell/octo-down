@@ -330,6 +330,8 @@ final class DownloadManager: NSObject, ObservableObject {
                     fileName: item.fileName,
                     title: item.title
                 )
+            } else if Self.isDASHManifestURL(resolvedURL) {
+                startDASHManifestDownload(for: item.id, manifestURLString: resolvedURL, fileName: item.fileName, title: item.title)
             } else if Self.isHLSPlaylistURL(resolvedURL) {
                 startHLSDownload(for: item.id, playlistURLString: resolvedURL, fileName: item.fileName, title: item.title)
             } else {
@@ -340,6 +342,11 @@ final class DownloadManager: NSObject, ObservableObject {
 
         if Self.isHLSPlaylistURL(item.sourceURL) {
             startHLSDownload(for: item.id, playlistURLString: item.sourceURL, fileName: item.fileName, title: item.title)
+            return
+        }
+
+        if Self.isDASHManifestURL(item.sourceURL) {
+            startDASHManifestDownload(for: item.id, manifestURLString: item.sourceURL, fileName: item.fileName, title: item.title)
             return
         }
 
@@ -655,6 +662,67 @@ final class DownloadManager: NSObject, ObservableObject {
         }
     }
 
+    private func startDASHManifestDownload(
+        for itemID: UUID,
+        manifestURLString: String,
+        fileName: String?,
+        title: String?
+    ) {
+        guard let manifestURL = URL(string: manifestURLString) else {
+            failDownload(itemID, message: "Invalid DASH manifest URL")
+            return
+        }
+
+        do {
+            let destination = try Self.dashDestinationURL(for: itemID, preferredFileName: fileName)
+            update(itemID) {
+                $0.status = .downloading
+                $0.resolvedURL = manifestURLString
+                $0.fileName = destination.lastPathComponent
+                if let title, !title.isEmpty {
+                    $0.title = title
+                }
+                $0.message = "Parsing DASH manifest"
+                $0.bytesPerSecond = 0
+                $0.estimatedRemainingSeconds = nil
+                $0.lastProgressAt = nil
+                $0.resumeData = nil
+            }
+
+            let pageURL = URL(string: tasks.first(where: { $0.id == itemID })?.sourceURL ?? manifestURLString)
+            let task = Task { [weak self] in
+                guard let manager = self else { return }
+                do {
+                    try await DASHMediaDownloader().downloadManifestAndMerge(
+                        manifestURL: manifestURL,
+                        pageURL: pageURL,
+                        destinationURL: destination
+                    ) { progress in
+                        Task { @MainActor in
+                            manager.updateDASHProgress(itemID, progress: progress)
+                        }
+                    }
+
+                    await MainActor.run {
+                        manager.finishDASHDownload(itemID, destination: destination)
+                    }
+                } catch is CancellationError {
+                    await MainActor.run {
+                        manager.dashTasks[itemID] = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        manager.failDownload(itemID, message: error.localizedDescription)
+                    }
+                }
+            }
+
+            dashTasks[itemID] = task
+        } catch {
+            failDownload(itemID, message: error.localizedDescription)
+        }
+    }
+
     private func startDownload(for itemID: UUID, resumeData: Data, fileName: String?) {
         update(itemID) {
             $0.status = .downloading
@@ -918,6 +986,11 @@ final class DownloadManager: NSObject, ObservableObject {
     nonisolated static func isHLSPlaylistURL(_ urlString: String) -> Bool {
         guard let url = URL(string: urlString) else { return false }
         return url.pathExtension.lowercased() == "m3u8"
+    }
+
+    nonisolated static func isDASHManifestURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        return url.pathExtension.lowercased() == "mpd"
     }
 
     private func referer(for mediaURL: URL, sourceURL: String?) -> String? {
