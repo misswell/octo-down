@@ -44,6 +44,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
     var id: UUID
     var sourceURL: String
     var resolvedURL: String?
+    var resolvedAudioURL: String?
     var title: String
     var fileName: String?
     var mode: MediaMode
@@ -70,6 +71,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
         case id
         case sourceURL
         case resolvedURL
+        case resolvedAudioURL
         case title
         case fileName
         case mode
@@ -108,6 +110,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
     ) {
         self.id = UUID()
         self.sourceURL = sourceURL
+        self.resolvedAudioURL = nil
         self.title = title
         self.fileName = fileName
         self.mode = mode
@@ -156,6 +159,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
         id = try container.decode(UUID.self, forKey: .id)
         sourceURL = try container.decode(String.self, forKey: .sourceURL)
         resolvedURL = try container.decodeIfPresent(String.self, forKey: .resolvedURL)
+        resolvedAudioURL = try container.decodeIfPresent(String.self, forKey: .resolvedAudioURL)
         title = try container.decode(String.self, forKey: .title)
         fileName = try container.decodeIfPresent(String.self, forKey: .fileName)
         mode = try container.decode(MediaMode.self, forKey: .mode)

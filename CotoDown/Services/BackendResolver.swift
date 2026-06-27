@@ -110,12 +110,14 @@ struct ResolvedFormatInfo: Decodable, Equatable, Identifiable {
 
 struct ResolvedMediaItem: Decodable, Equatable {
     var url: String
+    var audioURL: String? = nil
     var title: String?
     var filename: String?
 }
 
 struct ResolveResponse: Decodable {
     var url: String?
+    var audioURL: String? = nil
     var title: String?
     var filename: String?
     var entries: [ResolvedMediaItem]?
@@ -130,7 +132,7 @@ struct ResolveResponse: Decodable {
         }
 
         return [
-            ResolvedMediaItem(url: url, title: title, filename: filename)
+            ResolvedMediaItem(url: url, audioURL: audioURL, title: title, filename: filename)
         ]
     }
 }

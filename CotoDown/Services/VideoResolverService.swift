@@ -31,7 +31,7 @@ final class VideoResolverService: ObservableObject {
             do {
                 let interceptedURLs = try await interceptor.interceptVideoURLs(from: url, timeout: 20)
                 
-                if let firstVideoURL = interceptedURLs.first {
+                if !interceptedURLs.isEmpty {
                     return ResolvedLinkInfo(
                         title: extractTitle(from: url),
                         uploader: nil,
@@ -76,7 +76,7 @@ final class VideoResolverService: ObservableObject {
         if extractorManager.canExtract(url: url) {
             do {
                 let result = try await extractorManager.extract(url: url)
-                return convertToResolveResponse(result, url: url)
+                return convertToResolveResponse(result, url: url, template: template)
             } catch {
                 print("Native extractor failed: \(error.localizedDescription)")
             }
@@ -90,12 +90,7 @@ final class VideoResolverService: ObservableObject {
                 if let firstVideoURL = interceptedURLs.first {
                     let filename = sanitizeFilename(extractTitle(from: url)) + ".mp4"
                     
-                    return ResolveResponse(
-                        url: firstVideoURL,
-                        title: extractTitle(from: url),
-                        filename: filename,
-                        entries: nil
-                    )
+                    return ResolveResponse(url: firstVideoURL, title: extractTitle(from: url), filename: filename, entries: nil)
                 }
             } catch {
                 print("URL interception failed: \(error.localizedDescription)")
@@ -160,7 +155,25 @@ final class VideoResolverService: ObservableObject {
         )
     }
     
-    private func convertToResolveResponse(_ result: ExtractionResult, url: String) -> ResolveResponse {
+    private func convertToResolveResponse(_ result: ExtractionResult, url: String, template: DownloadTemplate) -> ResolveResponse {
+        if template.mode == .audio {
+            let audioFormat = result.formats
+                .filter { $0.hasAudio && !$0.hasVideo }
+                .max { ($0.bitrate ?? 0) < ($1.bitrate ?? 0) }
+                ?? result.formats.first { $0.hasAudio }
+
+            guard let audioFormat else {
+                return ResolveResponse(url: nil, title: result.title, filename: sanitizeFilename(result.title) + ".m4a", entries: nil)
+            }
+
+            return ResolveResponse(
+                url: audioFormat.url,
+                title: result.title,
+                filename: sanitizeFilename(result.title) + "." + (extractExtension(from: audioFormat.mimeType) ?? "m4a"),
+                entries: nil
+            )
+        }
+
         guard let bestFormat = result.bestFormat else {
             return ResolveResponse(
                 url: nil,
@@ -169,7 +182,20 @@ final class VideoResolverService: ObservableObject {
                 entries: nil
             )
         }
-        
+
+        if bestFormat.hasVideo && !bestFormat.hasAudio,
+           let audioFormat = result.formats
+            .filter({ $0.hasAudio && !$0.hasVideo })
+            .max(by: { ($0.bitrate ?? 0) < ($1.bitrate ?? 0) }) {
+            return ResolveResponse(
+                url: bestFormat.url,
+                audioURL: audioFormat.url,
+                title: result.title,
+                filename: sanitizeFilename(result.title) + ".mp4",
+                entries: nil
+            )
+        }
+
         let filename = sanitizeFilename(result.title) + "." + (extractExtension(from: bestFormat.mimeType) ?? "mp4")
         
         return ResolveResponse(

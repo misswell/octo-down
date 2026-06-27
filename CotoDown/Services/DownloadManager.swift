@@ -11,6 +11,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private var session: URLSession!
     private var runningTasks: [UUID: URLSessionDownloadTask] = [:]
     private var hlsTasks: [UUID: Task<Void, Never>] = [:]
+    private var dashTasks: [UUID: Task<Void, Never>] = [:]
     private var taskIDMap: [Int: UUID] = [:]
     private let resolver = VideoResolverService()
     private var maxConcurrentDownloads = AppSettings.maxConcurrentDownloadsPreference
@@ -170,6 +171,21 @@ final class DownloadManager: NSObject, ObservableObject {
             return
         }
 
+        if let dashTask = dashTasks[item.id] {
+            dashTask.cancel()
+            dashTasks[item.id] = nil
+            update(item.id) {
+                $0.status = .paused
+                $0.message = "Paused; DASH merge resume is unavailable"
+                $0.bytesPerSecond = 0
+                $0.estimatedRemainingSeconds = nil
+                $0.lastProgressAt = nil
+                $0.resumeData = nil
+            }
+            processQueue()
+            return
+        }
+
         guard let task = runningTasks[item.id] else { return }
 
         update(item.id) {
@@ -295,7 +311,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let activeStatusIDs = tasks
             .filter { $0.status == .resolving || $0.status == .downloading }
             .map(\.id)
-        return Set(activeStatusIDs).union(runningTasks.keys).union(hlsTasks.keys).count
+        return Set(activeStatusIDs).union(runningTasks.keys).union(hlsTasks.keys).union(dashTasks.keys).count
     }
 
     private func startQueuedTask(_ item: DownloadTaskItem) {
@@ -305,7 +321,16 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         if let resolvedURL = item.resolvedURL {
-            if Self.isHLSPlaylistURL(resolvedURL) {
+            if let audioURL = item.resolvedAudioURL {
+                startDASHDownload(
+                    for: item.id,
+                    videoURLString: resolvedURL,
+                    audioURLString: audioURL,
+                    pageURLString: item.sourceURL,
+                    fileName: item.fileName,
+                    title: item.title
+                )
+            } else if Self.isHLSPlaylistURL(resolvedURL) {
                 startHLSDownload(for: item.id, playlistURLString: resolvedURL, fileName: item.fileName, title: item.title)
             } else {
                 startDownload(for: item.id, resolvedURL: resolvedURL, fileName: item.fileName, title: item.title)
@@ -385,7 +410,16 @@ final class DownloadManager: NSObject, ObservableObject {
 
             let preferredFileName = tasks.first(where: { $0.id == itemID })?.fileName
             let resolvedFileName = preferredFileName ?? firstItem.filename
-            if Self.isHLSPlaylistURL(firstItem.url) {
+            if let audioURL = firstItem.audioURL {
+                startDASHDownload(
+                    for: itemID,
+                    videoURLString: firstItem.url,
+                    audioURLString: audioURL,
+                    pageURLString: sourceURL,
+                    fileName: resolvedFileName,
+                    title: firstItem.title
+                )
+            } else if Self.isHLSPlaylistURL(firstItem.url) {
                 startHLSDownload(
                     for: itemID,
                     playlistURLString: firstItem.url,
@@ -453,6 +487,7 @@ final class DownloadManager: NSObject, ObservableObject {
                 status: .queued
             )
             item.resolvedURL = mediaItem.url
+            item.resolvedAudioURL = mediaItem.audioURL
             item.fileName = mediaItem.filename
             return item
         }
@@ -523,28 +558,96 @@ final class DownloadManager: NSObject, ObservableObject {
 
             let startedAt = Date()
             let task = Task { [weak self] in
+                guard let manager = self else { return }
                 do {
                     try await HLSDownloader().download(playlistURL: playlistURL, destinationURL: destination) { progress in
-                        Task { @MainActor [weak self] in
-                            self?.updateHLSProgress(itemID, progress: progress, startedAt: startedAt)
+                        Task { @MainActor in
+                            manager.updateHLSProgress(itemID, progress: progress, startedAt: startedAt)
                         }
                     }
 
                     await MainActor.run {
-                        self?.finishHLSDownload(itemID, destination: destination)
+                        manager.finishHLSDownload(itemID, destination: destination)
                     }
                 } catch is CancellationError {
                     await MainActor.run {
-                        self?.hlsTasks[itemID] = nil
+                        manager.hlsTasks[itemID] = nil
                     }
                 } catch {
                     await MainActor.run {
-                        self?.failDownload(itemID, message: error.localizedDescription)
+                        manager.failDownload(itemID, message: error.localizedDescription)
                     }
                 }
             }
 
             hlsTasks[itemID] = task
+        } catch {
+            failDownload(itemID, message: error.localizedDescription)
+        }
+    }
+
+    private func startDASHDownload(
+        for itemID: UUID,
+        videoURLString: String,
+        audioURLString: String,
+        pageURLString: String,
+        fileName: String?,
+        title: String?
+    ) {
+        guard let videoURL = URL(string: videoURLString),
+              let audioURL = URL(string: audioURLString)
+        else {
+            failDownload(itemID, message: "Invalid DASH media URL")
+            return
+        }
+
+        do {
+            let destination = try Self.dashDestinationURL(for: itemID, preferredFileName: fileName)
+            update(itemID) {
+                $0.status = .downloading
+                $0.resolvedURL = videoURLString
+                $0.resolvedAudioURL = audioURLString
+                $0.fileName = destination.lastPathComponent
+                if let title, !title.isEmpty {
+                    $0.title = title
+                }
+                $0.message = "Downloading separated video/audio"
+                $0.bytesPerSecond = 0
+                $0.estimatedRemainingSeconds = nil
+                $0.lastProgressAt = nil
+                $0.resumeData = nil
+            }
+
+            let pageURL = URL(string: pageURLString)
+            let task = Task { [weak self] in
+                guard let manager = self else { return }
+                do {
+                    try await DASHMediaDownloader().downloadAndMerge(
+                        videoURL: videoURL,
+                        audioURL: audioURL,
+                        pageURL: pageURL,
+                        destinationURL: destination
+                    ) { progress in
+                        Task { @MainActor in
+                            manager.updateDASHProgress(itemID, progress: progress)
+                        }
+                    }
+
+                    await MainActor.run {
+                        manager.finishDASHDownload(itemID, destination: destination)
+                    }
+                } catch is CancellationError {
+                    await MainActor.run {
+                        manager.dashTasks[itemID] = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        manager.failDownload(itemID, message: error.localizedDescription)
+                    }
+                }
+            }
+
+            dashTasks[itemID] = task
         } catch {
             failDownload(itemID, message: error.localizedDescription)
         }
@@ -574,6 +677,8 @@ final class DownloadManager: NSObject, ObservableObject {
         runningTasks[id] = nil
         hlsTasks[id]?.cancel()
         hlsTasks[id] = nil
+        dashTasks[id]?.cancel()
+        dashTasks[id] = nil
         if let task {
             taskIDMap[task.taskIdentifier] = nil
             saveTaskMap()
@@ -629,6 +734,40 @@ final class DownloadManager: NSObject, ObservableObject {
         processQueue()
     }
 
+    private func updateDASHProgress(_ id: UUID, progress: DASHMediaDownloadProgress) {
+        update(id) {
+            $0.status = .downloading
+            $0.progress = min(max(progress.progress, 0), 1)
+            $0.message = Self.dashProgressMessage(for: progress.stage)
+            $0.bytesPerSecond = 0
+            $0.estimatedRemainingSeconds = nil
+            $0.lastProgressAt = Date()
+        }
+    }
+
+    private func finishDASHDownload(_ id: UUID, destination: URL) {
+        update(id) {
+            $0.status = .finished
+            $0.progress = 1
+            $0.localPath = destination.path
+            $0.fileName = destination.lastPathComponent
+            $0.finishedAt = Date()
+            $0.message = "Merged and saved to Documents"
+            $0.bytesPerSecond = 0
+            $0.estimatedRemainingSeconds = nil
+            $0.lastProgressAt = nil
+            $0.resumeData = nil
+        }
+        if AppSettings.notificationsEnabledPreference {
+            NotificationCenterService.notifyDownloadFinished(
+                title: tasks.first(where: { $0.id == id })?.title ?? destination.lastPathComponent,
+                fileName: destination.lastPathComponent
+            )
+        }
+        dashTasks[id] = nil
+        processQueue()
+    }
+
     private func failDownload(_ id: UUID, message: String) {
         update(id) {
             $0.status = .failed
@@ -646,6 +785,7 @@ final class DownloadManager: NSObject, ObservableObject {
             )
         }
         hlsTasks[id] = nil
+        dashTasks[id] = nil
         processQueue()
     }
 
@@ -776,6 +916,17 @@ final class DownloadManager: NSObject, ObservableObject {
     nonisolated static func isHLSPlaylistURL(_ urlString: String) -> Bool {
         guard let url = URL(string: urlString) else { return false }
         return url.pathExtension.lowercased() == "m3u8"
+    }
+
+    private nonisolated static func dashProgressMessage(for stage: DASHMediaDownloadProgress.Stage) -> String {
+        switch stage {
+        case .downloadingVideo:
+            "Downloading DASH video stream"
+        case .downloadingAudio:
+            "Downloading DASH audio stream"
+        case .merging:
+            "Merging video and audio"
+        }
     }
 }
 
@@ -969,6 +1120,26 @@ extension DownloadManager: URLSessionDownloadDelegate {
         let normalizedName = URL(fileURLWithPath: preferredName).pathExtension.lowercased() == "m3u8"
             ? "\(URL(fileURLWithPath: preferredName).deletingPathExtension().lastPathComponent).ts"
             : preferredName
+        let candidate = folder.appendingPathComponent(Self.sanitizedFileName(normalizedName))
+        return Self.availableFileURL(for: candidate)
+    }
+
+    private nonisolated static func dashDestinationURL(
+        for id: UUID,
+        preferredFileName: String?
+    ) throws -> URL {
+        let folder = Self.downloadsFolderURL()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        let preferredName = Self.fileName(
+            preferredFileName: preferredFileName,
+            responseFileName: "download-\(id.uuidString.prefix(8)).mp4",
+            fallback: "download-\(id.uuidString.prefix(8)).mp4"
+        )
+        let url = URL(fileURLWithPath: preferredName)
+        let normalizedName = url.pathExtension.isEmpty
+            ? "\(url.lastPathComponent).mp4"
+            : "\(url.deletingPathExtension().lastPathComponent).mp4"
         let candidate = folder.appendingPathComponent(Self.sanitizedFileName(normalizedName))
         return Self.availableFileURL(for: candidate)
     }

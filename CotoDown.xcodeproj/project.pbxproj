@@ -32,6 +32,7 @@
 		5D0E00000000000000000019 /* VideoResolverService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E00000000000000000039 /* VideoResolverService.swift */; };
 		5D0E0000000000000000001A /* VideoURLInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000003A /* VideoURLInterceptor.swift */; };
 		5D0E0000000000000000001B /* HLSDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000003B /* HLSDownloader.swift */; };
+		5D0E0000000000000000001C /* DASHMediaDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E0000000000000000003C /* DASHMediaDownloader.swift */; };
 		5D0E000000000000000000C8 /* ExtractorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C1 /* ExtractorProtocol.swift */; };
 		5D0E000000000000000000C9 /* ExtractorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C2 /* ExtractorManager.swift */; };
 		5D0E000000000000000000CA /* YouTubeExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0E000000000000000000C3 /* YouTubeExtractor.swift */; };
@@ -93,6 +94,7 @@
 		5D0E00000000000000000039 /* VideoResolverService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoResolverService.swift; sourceTree = "<group>"; };
 		5D0E0000000000000000003A /* VideoURLInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoURLInterceptor.swift; sourceTree = "<group>"; };
 		5D0E0000000000000000003B /* HLSDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSDownloader.swift; sourceTree = "<group>"; };
+		5D0E0000000000000000003C /* DASHMediaDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DASHMediaDownloader.swift; sourceTree = "<group>"; };
 		5D0E000000000000000000C1 /* ExtractorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractorProtocol.swift; sourceTree = "<group>"; };
 		5D0E000000000000000000C2 /* ExtractorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractorManager.swift; sourceTree = "<group>"; };
 		5D0E000000000000000000C3 /* YouTubeExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeExtractor.swift; sourceTree = "<group>"; };
@@ -184,6 +186,7 @@
 				5D0E00000000000000000039 /* VideoResolverService.swift */,
 				5D0E0000000000000000003A /* VideoURLInterceptor.swift */,
 				5D0E0000000000000000003B /* HLSDownloader.swift */,
+				5D0E0000000000000000003C /* DASHMediaDownloader.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -327,6 +330,7 @@
 				5D0E00000000000000000019 /* VideoResolverService.swift in Sources */,
 				5D0E0000000000000000001A /* VideoURLInterceptor.swift in Sources */,
 				5D0E0000000000000000001B /* HLSDownloader.swift in Sources */,
+				5D0E0000000000000000001C /* DASHMediaDownloader.swift in Sources */,
 				5D0E000000000000000000C8 /* ExtractorProtocol.swift in Sources */,
 				5D0E000000000000000000C9 /* ExtractorManager.swift in Sources */,
 				5D0E000000000000000000CA /* YouTubeExtractor.swift in Sources */,
