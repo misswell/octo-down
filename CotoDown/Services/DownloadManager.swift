@@ -10,6 +10,7 @@ final class DownloadManager: NSObject, ObservableObject {
     private let taskMapKey = "backgroundTaskMap"
     private var session: URLSession!
     private var runningTasks: [UUID: URLSessionDownloadTask] = [:]
+    private var hlsTasks: [UUID: Task<Void, Never>] = [:]
     private var taskIDMap: [Int: UUID] = [:]
     private let resolver = VideoResolverService()
     private var maxConcurrentDownloads = AppSettings.maxConcurrentDownloadsPreference
@@ -152,9 +153,24 @@ final class DownloadManager: NSObject, ObservableObject {
     }
 
     func pause(_ item: DownloadTaskItem) {
-        guard item.status == .downloading,
-              let task = runningTasks[item.id]
-        else { return }
+        guard item.status == .downloading else { return }
+
+        if let hlsTask = hlsTasks[item.id] {
+            hlsTask.cancel()
+            hlsTasks[item.id] = nil
+            update(item.id) {
+                $0.status = .paused
+                $0.message = "Paused; HLS resume is unavailable"
+                $0.bytesPerSecond = 0
+                $0.estimatedRemainingSeconds = nil
+                $0.lastProgressAt = nil
+                $0.resumeData = nil
+            }
+            processQueue()
+            return
+        }
+
+        guard let task = runningTasks[item.id] else { return }
 
         update(item.id) {
             $0.status = .paused
@@ -279,7 +295,7 @@ final class DownloadManager: NSObject, ObservableObject {
         let activeStatusIDs = tasks
             .filter { $0.status == .resolving || $0.status == .downloading }
             .map(\.id)
-        return Set(activeStatusIDs).union(runningTasks.keys).count
+        return Set(activeStatusIDs).union(runningTasks.keys).union(hlsTasks.keys).count
     }
 
     private func startQueuedTask(_ item: DownloadTaskItem) {
@@ -289,7 +305,16 @@ final class DownloadManager: NSObject, ObservableObject {
         }
 
         if let resolvedURL = item.resolvedURL {
-            startDownload(for: item.id, resolvedURL: resolvedURL, fileName: item.fileName, title: item.title)
+            if Self.isHLSPlaylistURL(resolvedURL) {
+                startHLSDownload(for: item.id, playlistURLString: resolvedURL, fileName: item.fileName, title: item.title)
+            } else {
+                startDownload(for: item.id, resolvedURL: resolvedURL, fileName: item.fileName, title: item.title)
+            }
+            return
+        }
+
+        if Self.isHLSPlaylistURL(item.sourceURL) {
+            startHLSDownload(for: item.id, playlistURLString: item.sourceURL, fileName: item.fileName, title: item.title)
             return
         }
 
@@ -359,12 +384,22 @@ final class DownloadManager: NSObject, ObservableObject {
             }
 
             let preferredFileName = tasks.first(where: { $0.id == itemID })?.fileName
-            startDownload(
-                for: itemID,
-                resolvedURL: firstItem.url,
-                fileName: preferredFileName ?? firstItem.filename,
-                title: firstItem.title
-            )
+            let resolvedFileName = preferredFileName ?? firstItem.filename
+            if Self.isHLSPlaylistURL(firstItem.url) {
+                startHLSDownload(
+                    for: itemID,
+                    playlistURLString: firstItem.url,
+                    fileName: resolvedFileName,
+                    title: firstItem.title
+                )
+            } else {
+                startDownload(
+                    for: itemID,
+                    resolvedURL: firstItem.url,
+                    fileName: resolvedFileName,
+                    title: firstItem.title
+                )
+            }
 
             enqueueResolvedItems(
                 Array(mediaItems.dropFirst()),
@@ -464,6 +499,57 @@ final class DownloadManager: NSObject, ObservableObject {
         task.resume()
     }
 
+    private func startHLSDownload(for itemID: UUID, playlistURLString: String, fileName: String?, title: String?) {
+        guard let playlistURL = URL(string: playlistURLString) else {
+            failDownload(itemID, message: "Invalid HLS playlist URL")
+            return
+        }
+
+        do {
+            let destination = try Self.hlsDestinationURL(for: itemID, preferredFileName: fileName)
+            update(itemID) {
+                $0.status = .downloading
+                $0.resolvedURL = playlistURLString
+                $0.fileName = destination.lastPathComponent
+                if let title, !title.isEmpty {
+                    $0.title = title
+                }
+                $0.message = "Downloading HLS segments"
+                $0.bytesPerSecond = 0
+                $0.estimatedRemainingSeconds = nil
+                $0.lastProgressAt = nil
+                $0.resumeData = nil
+            }
+
+            let startedAt = Date()
+            let task = Task { [weak self] in
+                do {
+                    try await HLSDownloader().download(playlistURL: playlistURL, destinationURL: destination) { progress in
+                        Task { @MainActor [weak self] in
+                            self?.updateHLSProgress(itemID, progress: progress, startedAt: startedAt)
+                        }
+                    }
+
+                    await MainActor.run {
+                        self?.finishHLSDownload(itemID, destination: destination)
+                    }
+                } catch is CancellationError {
+                    await MainActor.run {
+                        self?.hlsTasks[itemID] = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        self?.failDownload(itemID, message: error.localizedDescription)
+                    }
+                }
+            }
+
+            hlsTasks[itemID] = task
+        } catch {
+            failDownload(itemID, message: error.localizedDescription)
+        }
+    }
+
     private func startDownload(for itemID: UUID, resumeData: Data, fileName: String?) {
         update(itemID) {
             $0.status = .downloading
@@ -486,10 +572,81 @@ final class DownloadManager: NSObject, ObservableObject {
         let task = runningTasks[id]
         task?.cancel()
         runningTasks[id] = nil
+        hlsTasks[id]?.cancel()
+        hlsTasks[id] = nil
         if let task {
             taskIDMap[task.taskIdentifier] = nil
             saveTaskMap()
         }
+    }
+
+    private func updateHLSProgress(_ id: UUID, progress: HLSDownloadProgress, startedAt: Date) {
+        let now = Date()
+        update(id) {
+            let elapsed = max(now.timeIntervalSince(startedAt), 0.001)
+            let speed = Double(progress.receivedBytes) / elapsed
+            let segmentProgress = progress.totalSegments > 0
+                ? Double(progress.completedSegments) / Double(progress.totalSegments)
+                : 0
+
+            $0.status = .downloading
+            $0.progress = min(max(segmentProgress, 0), 1)
+            $0.receivedBytes = progress.receivedBytes
+            $0.totalBytes = 0
+            $0.bytesPerSecond = speed.isFinite ? max(speed, 0) : 0
+            if progress.completedSegments > 0, progress.completedSegments < progress.totalSegments {
+                let remainingSegments = progress.totalSegments - progress.completedSegments
+                let secondsPerSegment = elapsed / Double(progress.completedSegments)
+                $0.estimatedRemainingSeconds = secondsPerSegment * Double(remainingSegments)
+            } else {
+                $0.estimatedRemainingSeconds = nil
+            }
+            $0.lastProgressAt = now
+            $0.message = "Downloaded \(progress.completedSegments)/\(progress.totalSegments) HLS segments"
+        }
+    }
+
+    private func finishHLSDownload(_ id: UUID, destination: URL) {
+        update(id) {
+            $0.status = .finished
+            $0.progress = 1
+            $0.localPath = destination.path
+            $0.fileName = destination.lastPathComponent
+            $0.finishedAt = Date()
+            $0.message = "Saved to Documents"
+            $0.bytesPerSecond = 0
+            $0.estimatedRemainingSeconds = nil
+            $0.lastProgressAt = nil
+            $0.resumeData = nil
+        }
+        if AppSettings.notificationsEnabledPreference {
+            NotificationCenterService.notifyDownloadFinished(
+                title: tasks.first(where: { $0.id == id })?.title ?? destination.lastPathComponent,
+                fileName: destination.lastPathComponent
+            )
+        }
+        hlsTasks[id] = nil
+        processQueue()
+    }
+
+    private func failDownload(_ id: UUID, message: String) {
+        update(id) {
+            $0.status = .failed
+            $0.message = message
+            $0.finishedAt = Date()
+            $0.bytesPerSecond = 0
+            $0.estimatedRemainingSeconds = nil
+            $0.lastProgressAt = nil
+            $0.resumeData = nil
+        }
+        if AppSettings.notificationsEnabledPreference {
+            NotificationCenterService.notifyDownloadFailed(
+                title: tasks.first(where: { $0.id == id })?.title ?? "Download",
+                message: message
+            )
+        }
+        hlsTasks[id] = nil
+        processQueue()
     }
 
     private func update(_ id: UUID, mutate: (inout DownloadTaskItem) -> Void) {
@@ -614,6 +771,11 @@ final class DownloadManager: NSObject, ObservableObject {
 
     nonisolated static func isDirectDownloadURL(_ urlString: String) -> Bool {
         BackendResolver.isDirectDownloadURL(urlString)
+    }
+
+    nonisolated static func isHLSPlaylistURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString) else { return false }
+        return url.pathExtension.lowercased() == "m3u8"
     }
 }
 
@@ -789,6 +951,25 @@ extension DownloadManager: URLSessionDownloadDelegate {
             fallback: "download-\(id.uuidString.prefix(8))"
         )
         let candidate = folder.appendingPathComponent(Self.sanitizedFileName(preferredName))
+        return Self.availableFileURL(for: candidate)
+    }
+
+    private nonisolated static func hlsDestinationURL(
+        for id: UUID,
+        preferredFileName: String?
+    ) throws -> URL {
+        let folder = Self.downloadsFolderURL()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        let preferredName = Self.fileName(
+            preferredFileName: preferredFileName,
+            responseFileName: "download-\(id.uuidString.prefix(8)).ts",
+            fallback: "download-\(id.uuidString.prefix(8)).ts"
+        )
+        let normalizedName = URL(fileURLWithPath: preferredName).pathExtension.lowercased() == "m3u8"
+            ? "\(URL(fileURLWithPath: preferredName).deletingPathExtension().lastPathComponent).ts"
+            : preferredName
+        let candidate = folder.appendingPathComponent(Self.sanitizedFileName(normalizedName))
         return Self.availableFileURL(for: candidate)
     }
 
