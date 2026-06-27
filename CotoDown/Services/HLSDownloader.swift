@@ -9,7 +9,9 @@ struct HLSDownloadProgress: Sendable {
 enum HLSDownloadError: LocalizedError {
     case invalidPlaylistURL
     case invalidPlaylist
-    case encryptedStreamUnsupported
+    case unsupportedEncryption(String)
+    case invalidEncryptionKey
+    case decryptionFailed
     case liveStreamUnsupported
     case noSegments
 
@@ -19,8 +21,12 @@ enum HLSDownloadError: LocalizedError {
             "Invalid HLS playlist URL."
         case .invalidPlaylist:
             "The HLS playlist could not be parsed."
-        case .encryptedStreamUnsupported:
-            "Encrypted HLS streams are not supported yet."
+        case .unsupportedEncryption(let method):
+            "HLS encryption method \(method) is not supported."
+        case .invalidEncryptionKey:
+            "The HLS encryption key could not be loaded."
+        case .decryptionFailed:
+            "The HLS segment could not be decrypted."
         case .liveStreamUnsupported:
             "Live HLS streams are not supported yet."
         case .noSegments:
@@ -45,9 +51,6 @@ struct HLSDownloader {
         guard mediaPlaylist.isLive == false else {
             throw HLSDownloadError.liveStreamUnsupported
         }
-        guard mediaPlaylist.isEncrypted == false else {
-            throw HLSDownloadError.encryptedStreamUnsupported
-        }
         guard !mediaPlaylist.segments.isEmpty else {
             throw HLSDownloadError.noSegments
         }
@@ -66,14 +69,19 @@ struct HLSDownloader {
             try? fileManager.removeItem(at: temporaryURL)
         }
 
-        for (index, segmentURL) in mediaPlaylist.segments.enumerated() {
+        for (index, segment) in mediaPlaylist.segments.enumerated() {
             try Task.checkCancellation()
-            var request = URLRequest(url: segmentURL)
+            var request = URLRequest(url: segment.url)
             CookieStore.apply(to: &request, referer: playlistURL.absoluteString)
             let (data, response) = try await session.data(for: request)
             try Self.validate(response)
-            try handle.write(contentsOf: data)
-            receivedBytes += Int64(data.count)
+            let outputData = try await decryptedDataIfNeeded(
+                data,
+                segment: segment,
+                referer: playlistURL.absoluteString
+            )
+            try handle.write(contentsOf: outputData)
+            receivedBytes += Int64(outputData.count)
             progress(
                 HLSDownloadProgress(
                     completedSegments: index + 1,
@@ -86,6 +94,18 @@ struct HLSDownloader {
         try handle.close()
         try? fileManager.removeItem(at: destinationURL)
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+    }
+
+    private func decryptedDataIfNeeded(_ data: Data, segment: HLSSegment, referer: String) async throws -> Data {
+        guard let key = segment.key else { return data }
+        var request = URLRequest(url: key.uri)
+        CookieStore.apply(to: &request, referer: referer)
+        let (keyData, response) = try await session.data(for: request)
+        try Self.validate(response)
+        guard keyData.count == 16 else {
+            throw HLSDownloadError.invalidEncryptionKey
+        }
+        return try Self.aes128CBCDecrypt(data: data, key: keyData, iv: key.iv)
     }
 
     private func resolveMediaPlaylist(from playlistURL: URL) async throws -> MediaPlaylist {
@@ -115,10 +135,89 @@ struct HLSDownloader {
     }
 }
 
+@_silgen_name("CCCrypt")
+private func commonCryptoCCCrypt(
+    _ operation: UInt32,
+    _ algorithm: UInt32,
+    _ options: UInt32,
+    _ key: UnsafeRawPointer,
+    _ keyLength: Int,
+    _ initializationVector: UnsafeRawPointer?,
+    _ dataIn: UnsafeRawPointer,
+    _ dataInLength: Int,
+    _ dataOut: UnsafeMutableRawPointer,
+    _ dataOutAvailable: Int,
+    _ dataOutMoved: UnsafeMutablePointer<Int>
+) -> Int32
+
+private extension HLSDownloader {
+    static func aes128CBCDecrypt(data: Data, key: Data, iv: Data) throws -> Data {
+        guard key.count == 16, iv.count == 16 else {
+            throw HLSDownloadError.invalidEncryptionKey
+        }
+
+        do {
+            return try decrypt(data: data, key: key, iv: iv, options: 1)
+        } catch {
+            return try decrypt(data: data, key: key, iv: iv, options: 0)
+        }
+    }
+
+    private static func decrypt(data: Data, key: Data, iv: Data, options: UInt32) throws -> Data {
+        let outputCapacity = data.count + 16
+        var output = Data(count: outputCapacity)
+        var outputLength = 0
+
+        let status = output.withUnsafeMutableBytes { outputBytes in
+            data.withUnsafeBytes { dataBytes in
+                key.withUnsafeBytes { keyBytes in
+                    iv.withUnsafeBytes { ivBytes in
+                        commonCryptoCCCrypt(
+                            1,
+                            0,
+                            options,
+                            keyBytes.baseAddress!,
+                            key.count,
+                            ivBytes.baseAddress,
+                            dataBytes.baseAddress!,
+                            data.count,
+                            outputBytes.baseAddress!,
+                            outputCapacity,
+                            &outputLength
+                        )
+                    }
+                }
+            }
+        }
+
+        guard status == 0 else {
+            throw HLSDownloadError.decryptionFailed
+        }
+
+        output.removeSubrange(outputLength..<output.count)
+        return output
+    }
+}
+
 private struct MediaPlaylist {
-    var segments: [URL]
-    var isEncrypted: Bool
+    var segments: [HLSSegment]
     var isLive: Bool
+}
+
+private struct HLSSegment {
+    var url: URL
+    var key: HLSKey?
+}
+
+private struct HLSKey {
+    var uri: URL
+    var iv: Data
+}
+
+private struct ParsedKey {
+    var method: String
+    var uri: URL?
+    var explicitIV: Data?
 }
 
 private struct ParsedPlaylist {
@@ -128,8 +227,7 @@ private struct ParsedPlaylist {
     }
 
     private var variants: [Variant] = []
-    private var segmentURLs: [URL] = []
-    private var encrypted = false
+    private var segments: [HLSSegment] = []
     private var ended = false
 
     var bestVariantURL: URL? {
@@ -147,15 +245,41 @@ private struct ParsedPlaylist {
         }
 
         var pendingVariantBandwidth: Int?
+        var currentKey: ParsedKey?
+        var mediaSequence = 0
+        var segmentSequence = 0
+
         for line in rawLines.dropFirst() {
             if line.hasPrefix("#EXT-X-STREAM-INF") {
                 pendingVariantBandwidth = Self.attribute("BANDWIDTH", in: line).flatMap(Int.init) ?? 0
                 continue
             }
 
+            if line.hasPrefix("#EXT-X-MEDIA-SEQUENCE") {
+                mediaSequence = line
+                    .split(separator: ":", maxSplits: 1)
+                    .last
+                    .flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
+                segmentSequence = 0
+                continue
+            }
+
             if line.hasPrefix("#EXT-X-KEY") {
                 let method = Self.attribute("METHOD", in: line)?.uppercased()
-                encrypted = method != nil && method != "NONE"
+                if method == nil || method == "NONE" {
+                    currentKey = nil
+                    continue
+                }
+                guard method == "AES-128" else {
+                    throw HLSDownloadError.unsupportedEncryption(method ?? "unknown")
+                }
+                let keyURL = Self.attribute("URI", in: line)
+                    .flatMap { URL(string: $0, relativeTo: baseURL)?.absoluteURL }
+                currentKey = ParsedKey(
+                    method: method ?? "AES-128",
+                    uri: keyURL,
+                    explicitIV: Self.ivData(from: Self.attribute("IV", in: line))
+                )
                 continue
             }
 
@@ -176,16 +300,23 @@ private struct ParsedPlaylist {
                 variants.append(Variant(url: url, bandwidth: bandwidth))
                 pendingVariantBandwidth = nil
             } else {
-                segmentURLs.append(url)
+                segments.append(
+                    HLSSegment(
+                        url: url,
+                        key: try currentKey.map {
+                            try Self.key(from: $0, sequence: mediaSequence + segmentSequence)
+                        }
+                    )
+                )
+                segmentSequence += 1
             }
         }
     }
 
     func mediaPlaylist(baseURL: URL) -> MediaPlaylist {
         MediaPlaylist(
-            segments: segmentURLs,
-            isEncrypted: encrypted,
-            isLive: !ended,
+            segments: segments,
+            isLive: !ended
         )
     }
 
@@ -201,5 +332,52 @@ private struct ParsedPlaylist {
             .split(separator: ",", maxSplits: 1)
             .first
             .map(String.init)
+    }
+
+    private static func key(from parsedKey: ParsedKey, sequence: Int) throws -> HLSKey {
+        guard let uri = parsedKey.uri else {
+            throw HLSDownloadError.invalidEncryptionKey
+        }
+        return HLSKey(
+            uri: uri,
+            iv: parsedKey.explicitIV ?? sequenceIV(sequence)
+        )
+    }
+
+    private static func ivData(from value: String?) -> Data? {
+        guard var hex = value?.trimmingCharacters(in: .whitespacesAndNewlines), !hex.isEmpty else {
+            return nil
+        }
+        if hex.hasPrefix("0x") || hex.hasPrefix("0X") {
+            hex.removeFirst(2)
+        }
+        if hex.count % 2 == 1 {
+            hex = "0\(hex)"
+        }
+        var data = Data()
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2, limitedBy: hex.endIndex) ?? hex.endIndex
+            guard let byte = UInt8(hex[index..<next], radix: 16) else {
+                return nil
+            }
+            data.append(byte)
+            index = next
+        }
+        guard data.count <= 16 else { return nil }
+        if data.count < 16 {
+            data.insert(contentsOf: repeatElement(0, count: 16 - data.count), at: 0)
+        }
+        return data
+    }
+
+    private static func sequenceIV(_ sequence: Int) -> Data {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        var value = UInt64(max(sequence, 0))
+        for index in stride(from: 15, through: 8, by: -1) {
+            bytes[index] = UInt8(value & 0xff)
+            value >>= 8
+        }
+        return Data(bytes)
     }
 }
