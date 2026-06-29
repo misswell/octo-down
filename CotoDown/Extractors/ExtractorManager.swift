@@ -30,6 +30,19 @@ final class ExtractorManager: ObservableObject {
         
         return try await extractor.extract(url: url)
     }
+
+    /// Check if a URL can be extracted as a playlist
+    func canExtractPlaylist(url: String) -> Bool {
+        extractor(for: url)?.canExtractPlaylist(url: url) ?? false
+    }
+
+    /// Extract playlist entries from URL
+    func extractPlaylist(url: String) async throws -> PlaylistResult {
+        guard let extractor = extractor(for: url) else {
+            throw ExtractionError.unsupportedPlatform
+        }
+        return try await extractor.extractPlaylist(url: url)
+    }
     
     /// Get all supported platforms
     var supportedPlatforms: [String] {

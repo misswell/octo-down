@@ -72,6 +72,31 @@ final class VideoResolverService: ObservableObject {
         token: String,
         delivery: ResolverDelivery
     ) async throws -> ResolveResponse {
+        // Strategy 0: Try playlist extraction first (for playlist URLs)
+        if extractorManager.canExtractPlaylist(url: url) {
+            do {
+                let playlistResult = try await extractorManager.extractPlaylist(url: url)
+                if !playlistResult.entries.isEmpty {
+                    let mediaItems = playlistResult.entries.map { entry in
+                        ResolvedMediaItem(
+                            url: entry.url,
+                            audioURL: nil,
+                            title: entry.title,
+                            filename: sanitizeFilename(entry.title) + ".mp4"
+                        )
+                    }
+                    return ResolveResponse(
+                        url: nil,
+                        title: playlistResult.title,
+                        filename: nil,
+                        entries: mediaItems
+                    )
+                }
+            } catch {
+                print("Playlist extraction failed: \(error.localizedDescription)")
+            }
+        }
+
         // Strategy 1: Try native extractor (fastest, most reliable)
         if extractorManager.canExtract(url: url) {
             do {
@@ -156,6 +181,24 @@ final class VideoResolverService: ObservableObject {
     }
     
     private func convertToResolveResponse(_ result: ExtractionResult, url: String, template: DownloadTemplate) -> ResolveResponse {
+        // If extractor returned playlist entries, pass them through
+        if !result.entries.isEmpty {
+            let mediaItems = result.entries.map { entry in
+                ResolvedMediaItem(
+                    url: entry.url,
+                    audioURL: nil,
+                    title: entry.title,
+                    filename: sanitizeFilename(entry.title) + ".mp4"
+                )
+            }
+            return ResolveResponse(
+                url: nil,
+                title: result.title,
+                filename: nil,
+                entries: mediaItems
+            )
+        }
+
         if template.mode == .audio {
             let audioFormat = result.formats
                 .filter { $0.hasAudio && !$0.hasVideo }

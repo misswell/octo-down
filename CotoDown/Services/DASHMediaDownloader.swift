@@ -1,6 +1,26 @@
 import AVFoundation
 import Foundation
 
+/// Retry a throwing operation with exponential backoff (max 3 attempts, ~6s total)
+private func retryWithBackoff<T>(
+    maxAttempts: Int = 3,
+    operation: @escaping () async throws -> T
+) async throws -> T {
+    var lastError: Error?
+    for attempt in 1...maxAttempts {
+        do {
+            return try await operation()
+        } catch {
+            lastError = error
+            if attempt < maxAttempts {
+                let delay = Double(1 << (attempt - 1))
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+        }
+    }
+    throw lastError ?? BackendResolverError.httpStatus(0)
+}
+
 enum DASHMediaDownloadError: LocalizedError {
     case invalidMediaURL
     case invalidManifest
@@ -89,8 +109,11 @@ struct DASHMediaDownloader {
     ) async throws {
         var request = URLRequest(url: manifestURL)
         CookieStore.apply(to: &request, referer: pageURL?.absoluteString)
-        let (data, response) = try await session.data(for: request)
-        try Self.validate(response)
+        let (data, response) = try await retryWithBackoff {
+            let (d, r) = try await session.data(for: request)
+            try Self.validate(r)
+            return (d, r)
+        }
         guard let xml = String(data: data, encoding: .utf8) else {
             throw DASHMediaDownloadError.invalidManifest
         }
@@ -131,8 +154,11 @@ struct DASHMediaDownloader {
         var request = URLRequest(url: mediaURL)
         CookieStore.apply(to: &request, referer: Self.referer(for: mediaURL, pageURL: pageURL))
 
-        let (temporaryURL, response) = try await session.download(for: request)
-        try Self.validate(response)
+        let (temporaryURL, response) = try await retryWithBackoff {
+            let (t, r) = try await session.download(for: request)
+            try Self.validate(r)
+            return (t, r)
+        }
         try? FileManager.default.removeItem(at: destinationURL)
         try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
         return destinationURL
@@ -150,20 +176,49 @@ struct DASHMediaDownloader {
             return try await download(mediaURL: stream.urls[0], pageURL: pageURL, to: destinationURL)
         }
 
-        FileManager.default.createFile(atPath: destinationURL.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: destinationURL)
-        defer {
-            try? handle.close()
-        }
+        let urls = stream.urls
+        let total = urls.count
+        try await withThrowingTaskGroup(of: (Int, Data).self) { group in
+            var results: [Int: Data] = [:]
+            let maxConcurrent = 4
 
-        for (index, url) in stream.urls.enumerated() {
-            try Task.checkCancellation()
-            var request = URLRequest(url: url)
-            CookieStore.apply(to: &request, referer: pageURL?.absoluteString)
-            let (data, response) = try await session.data(for: request)
-            try Self.validate(response)
-            try handle.write(contentsOf: data)
-            progress(Double(index + 1) / Double(stream.urls.count))
+            for index in urls.indices {
+                if index >= maxConcurrent {
+                    if let (completedIndex, data) = try await group.next() {
+                        results[completedIndex] = data
+                    }
+                }
+                let url = urls[index]
+                group.addTask { [session, pageURL] in
+                    try Task.checkCancellation()
+                    var request = URLRequest(url: url)
+                    CookieStore.apply(to: &request, referer: pageURL?.absoluteString)
+                    let (data, response) = try await retryWithBackoff {
+                        let (d, r) = try await session.data(for: request)
+                        try DASHMediaDownloader.validate(r)
+                        return (d, r)
+                    }
+                    return (index, data)
+                }
+            }
+
+            for _ in urls.indices {
+                if let (completedIndex, data) = try await group.next() {
+                    results[completedIndex] = data
+                }
+            }
+
+            FileManager.default.createFile(atPath: destinationURL.path, contents: nil)
+            let handle = try FileHandle(forWritingTo: destinationURL)
+            defer {
+                try? handle.close()
+            }
+
+            for index in urls.indices.sorted() {
+                guard let data = results[index] else { continue }
+                try handle.write(contentsOf: data)
+                progress(Double(index + 1) / Double(total))
+            }
         }
 
         return destinationURL
@@ -302,6 +357,13 @@ private struct DASHSegmentTemplate {
     var startNumber: Int
     var duration: Double?
     var timescale: Double
+    var timeline: [DASHSegmentTimelineEntry] = []
+}
+
+private struct DASHSegmentTimelineEntry {
+    var startTime: Int?
+    var duration: Int
+    var repeatCount: Int
 }
 
 private final class DASHManifestParser: NSObject, XMLParserDelegate {
@@ -333,6 +395,7 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
     private var representation: RepresentationContext?
     private var baseURLTarget: String?
     private var baseURLText = ""
+    private var insideSegmentTimeline = false
     private var streams: [DASHManifest.Stream] = []
     private var parseError: Error?
 
@@ -395,13 +458,29 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
                 media: attributeDict["media"],
                 startNumber: attributeDict["startNumber"].flatMap(Int.init) ?? 1,
                 duration: attributeDict["duration"].flatMap(Double.init),
-                timescale: attributeDict["timescale"].flatMap(Double.init) ?? 1
+                timescale: attributeDict["timescale"].flatMap(Double.init) ?? 1,
+                timeline: []
             )
             if representation != nil {
                 representation?.segmentTemplate = template
             } else {
                 adaptation?.segmentTemplate = template
             }
+        case "SegmentTimeline":
+            insideSegmentTimeline = true
+        case "S":
+            guard insideSegmentTimeline,
+                  let duration = attributeDict["d"].flatMap(Int.init)
+            else {
+                return
+            }
+            appendTimelineEntry(
+                DASHSegmentTimelineEntry(
+                    startTime: attributeDict["t"].flatMap(Int.init),
+                    duration: duration,
+                    repeatCount: attributeDict["r"].flatMap(Int.init) ?? 0
+                )
+            )
         case "BaseURL":
             baseURLText = ""
             if representation != nil {
@@ -433,6 +512,8 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
         switch elementName {
         case "BaseURL":
             applyBaseURL()
+        case "SegmentTimeline":
+            insideSegmentTimeline = false
         case "Representation":
             if let representation, let stream = stream(from: representation) {
                 streams.append(stream)
@@ -444,6 +525,14 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
             periodBaseURL = nil
         default:
             break
+        }
+    }
+
+    private func appendTimelineEntry(_ entry: DASHSegmentTimelineEntry) {
+        if representation != nil {
+            representation?.segmentTemplate?.timeline.append(entry)
+        } else {
+            adaptation?.segmentTemplate?.timeline.append(entry)
         }
     }
 
@@ -524,10 +613,26 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
     }
 
     private func urls(from template: DASHSegmentTemplate, representation: RepresentationContext) -> [URL]? {
-        guard let media = template.media,
-              let duration = template.duration,
+        guard let media = template.media, template.timescale > 0 else {
+            return nil
+        }
+
+        var urls: [URL] = []
+        if let initialization = template.initialization,
+           let initializationURL = templateURL(initialization, representation: representation, number: nil, time: nil) {
+            urls.append(initializationURL)
+        }
+
+        if !template.timeline.isEmpty {
+            guard let timelineURLs = timelineURLs(from: template, representation: representation, media: media) else {
+                return nil
+            }
+            urls.append(contentsOf: timelineURLs)
+            return urls
+        }
+
+        guard let duration = template.duration,
               duration > 0,
-              template.timescale > 0,
               let manifestDurationSeconds,
               manifestDurationSeconds > 0
         else {
@@ -536,15 +641,9 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
 
         let segmentSeconds = duration / template.timescale
         let segmentCount = min(max(Int(ceil(manifestDurationSeconds / segmentSeconds)), 1), 10_000)
-        var urls: [URL] = []
-        if let initialization = template.initialization,
-           let initializationURL = templateURL(initialization, representation: representation, number: nil) {
-            urls.append(initializationURL)
-        }
-
         for offset in 0..<segmentCount {
             let number = template.startNumber + offset
-            guard let url = templateURL(media, representation: representation, number: number) else {
+            guard let url = templateURL(media, representation: representation, number: number, time: nil) else {
                 return nil
             }
             urls.append(url)
@@ -552,23 +651,72 @@ private final class DASHManifestParser: NSObject, XMLParserDelegate {
         return urls
     }
 
-    private func templateURL(_ value: String, representation: RepresentationContext, number: Int?) -> URL? {
+    private func timelineURLs(
+        from template: DASHSegmentTemplate,
+        representation: RepresentationContext,
+        media: String
+    ) -> [URL]? {
+        var urls: [URL] = []
+        var currentTime = 0
+        var number = template.startNumber
+        let maxSegments = 10_000
+
+        for (index, entry) in template.timeline.enumerated() {
+            if let startTime = entry.startTime {
+                currentTime = startTime
+            }
+
+            let repeatCount: Int
+            if entry.repeatCount >= 0 {
+                repeatCount = entry.repeatCount
+            } else if let nextStartTime = template.timeline.dropFirst(index + 1).first(where: { $0.startTime != nil })?.startTime {
+                repeatCount = max((nextStartTime - currentTime) / entry.duration - 1, 0)
+            } else if let manifestDurationSeconds {
+                let manifestTicks = Int(ceil(manifestDurationSeconds * template.timescale))
+                repeatCount = max((manifestTicks - currentTime) / entry.duration - 1, 0)
+            } else {
+                return nil
+            }
+
+            for _ in 0...repeatCount {
+                guard urls.count < maxSegments,
+                      let url = templateURL(media, representation: representation, number: number, time: currentTime)
+                else {
+                    return nil
+                }
+                urls.append(url)
+                currentTime += entry.duration
+                number += 1
+            }
+        }
+
+        return urls
+    }
+
+    private func templateURL(_ value: String, representation: RepresentationContext, number: Int?, time: Int?) -> URL? {
         var path = value.replacingOccurrences(of: "$RepresentationID$", with: representation.id)
         if let number {
             path = Self.replaceNumberToken(in: path, number: number)
+        }
+        if let time {
+            path = Self.replaceToken(in: path, name: "Time", value: time)
         }
         return URL(string: path, relativeTo: representation.baseURL)?.absoluteURL
     }
 
     private static func replaceNumberToken(in value: String, number: Int) -> String {
-        var result = value.replacingOccurrences(of: "$Number$", with: "\(number)")
-        while let range = result.range(of: #"\$Number%0\d+d\$"#, options: .regularExpression) {
+        replaceToken(in: value, name: "Number", value: number)
+    }
+
+    private static func replaceToken(in value: String, name: String, value numericValue: Int) -> String {
+        var result = value.replacingOccurrences(of: "$\(name)$", with: "\(numericValue)")
+        while let range = result.range(of: #"\$TOKEN%0\d+d\$"#.replacingOccurrences(of: "TOKEN", with: name), options: .regularExpression) {
             let token = String(result[range])
             let widthText = token
-                .replacingOccurrences(of: "$Number%0", with: "")
+                .replacingOccurrences(of: "$\(name)%0", with: "")
                 .replacingOccurrences(of: "d$", with: "")
             let width = Int(widthText) ?? 1
-            let formatted = String(format: "%0\(width)d", number)
+            let formatted = String(format: "%0\(width)d", numericValue)
             result.replaceSubrange(range, with: formatted)
         }
         return result

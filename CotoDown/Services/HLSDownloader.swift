@@ -1,5 +1,25 @@
 import Foundation
 
+/// Retry a throwing operation with exponential backoff (max 3 attempts, ~6s total)
+private func retryWithBackoff<T>(
+    maxAttempts: Int = 3,
+    operation: @escaping () async throws -> T
+) async throws -> T {
+    var lastError: Error?
+    for attempt in 1...maxAttempts {
+        do {
+            return try await operation()
+        } catch {
+            lastError = error
+            if attempt < maxAttempts {
+                let delay = Double(1 << (attempt - 1))  // 1s, 2s, 4s
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+        }
+    }
+    throw lastError ?? BackendResolverError.httpStatus(0)
+}
+
 struct HLSDownloadProgress: Sendable {
     var completedSegments: Int
     var totalSegments: Int
@@ -69,39 +89,104 @@ struct HLSDownloader {
             try? fileManager.removeItem(at: temporaryURL)
         }
 
-        for (index, segment) in mediaPlaylist.segments.enumerated() {
-            try Task.checkCancellation()
-            var request = URLRequest(url: segment.url)
-            CookieStore.apply(to: &request, referer: playlistURL.absoluteString)
-            let (data, response) = try await session.data(for: request)
-            try Self.validate(response)
-            let outputData = try await decryptedDataIfNeeded(
-                data,
-                segment: segment,
-                referer: playlistURL.absoluteString
-            )
-            try handle.write(contentsOf: outputData)
-            receivedBytes += Int64(outputData.count)
-            progress(
-                HLSDownloadProgress(
-                    completedSegments: index + 1,
-                    totalSegments: mediaPlaylist.segments.count,
-                    receivedBytes: receivedBytes
-                )
-            )
-        }
+        let total = mediaPlaylist.segments.count
+        try await downloadSegmentsConcurrently(
+            segments: mediaPlaylist.segments,
+            referer: playlistURL.absoluteString,
+            handle: handle,
+            receivedBytes: &receivedBytes,
+            total: total,
+            progress: progress
+        )
 
         try handle.close()
         try? fileManager.removeItem(at: destinationURL)
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
     }
 
+    private func downloadSegmentsConcurrently(
+        segments: [HLSSegment],
+        referer: String,
+        handle: FileHandle,
+        receivedBytes: inout Int64,
+        total: Int,
+        progress: @escaping @Sendable (HLSDownloadProgress) -> Void
+    ) async throws {
+        try await withThrowingTaskGroup(of: (Int, Data).self) { group in
+            var results: [Int: Data] = [:]
+            let maxConcurrent = 4
+
+            for index in segments.indices {
+                if index >= maxConcurrent {
+                    if let (completedIndex, data) = try await group.next() {
+                        results[completedIndex] = data
+                    }
+                }
+                let segment = segments[index]
+                group.addTask { [session, referer] in
+                    try Task.checkCancellation()
+                    var request = URLRequest(url: segment.url)
+                    CookieStore.apply(to: &request, referer: referer)
+                    let (rawData, response) = try await retryWithBackoff {
+                        let (d, r) = try await session.data(for: request)
+                        try HLSDownloader.validate(r)
+                        return (d, r)
+                    }
+                    let outputData = try await HLSDownloader.decryptedDataIfNeeded(
+                        rawData,
+                        segment: segment,
+                        referer: referer,
+                        session: session
+                    )
+                    return (index, outputData)
+                }
+            }
+
+            for _ in segments.indices {
+                if let (completedIndex, data) = try await group.next() {
+                    results[completedIndex] = data
+                }
+            }
+
+            for index in segments.indices.sorted() {
+                guard let data = results[index] else { continue }
+                try handle.write(contentsOf: data)
+                receivedBytes += Int64(data.count)
+                progress(
+                    HLSDownloadProgress(
+                        completedSegments: index + 1,
+                        totalSegments: total,
+                        receivedBytes: receivedBytes
+                    )
+                )
+            }
+        }
+    }
+
     private func decryptedDataIfNeeded(_ data: Data, segment: HLSSegment, referer: String) async throws -> Data {
         guard let key = segment.key else { return data }
         var request = URLRequest(url: key.uri)
         CookieStore.apply(to: &request, referer: referer)
-        let (keyData, response) = try await session.data(for: request)
-        try Self.validate(response)
+        let (keyData, response) = try await retryWithBackoff {
+            let (d, r) = try await session.data(for: request)
+            try Self.validate(r)
+            return (d, r)
+        }
+        guard keyData.count == 16 else {
+            throw HLSDownloadError.invalidEncryptionKey
+        }
+        return try Self.aes128CBCDecrypt(data: data, key: keyData, iv: key.iv)
+    }
+
+    private static func decryptedDataIfNeeded(_ data: Data, segment: HLSSegment, referer: String, session: URLSession) async throws -> Data {
+        guard let key = segment.key else { return data }
+        var request = URLRequest(url: key.uri)
+        CookieStore.apply(to: &request, referer: referer)
+        let (keyData, response) = try await retryWithBackoff {
+            let (d, r) = try await session.data(for: request)
+            try validate(r)
+            return (d, r)
+        }
         guard keyData.count == 16 else {
             throw HLSDownloadError.invalidEncryptionKey
         }
@@ -119,8 +204,11 @@ struct HLSDownloader {
     private func loadPlaylist(from url: URL) async throws -> ParsedPlaylist {
         var request = URLRequest(url: url)
         CookieStore.apply(to: &request)
-        let (data, response) = try await session.data(for: request)
-        try Self.validate(response)
+        let (data, response) = try await retryWithBackoff {
+            let (d, r) = try await session.data(for: request)
+            try Self.validate(r)
+            return (d, r)
+        }
         guard let text = String(data: data, encoding: .utf8) else {
             throw HLSDownloadError.invalidPlaylist
         }

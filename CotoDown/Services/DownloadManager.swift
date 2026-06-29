@@ -794,6 +794,11 @@ final class DownloadManager: NSObject, ObservableObject {
             $0.lastProgressAt = nil
             $0.resumeData = nil
         }
+        Task {
+            await self.downloadSubtitles(for: id, destination: destination)
+            await self.downloadThumbnail(for: id, destination: destination)
+            await self.saveMetadata(for: id, destination: destination)
+        }
         if AppSettings.notificationsEnabledPreference {
             NotificationCenterService.notifyDownloadFinished(
                 title: tasks.first(where: { $0.id == id })?.title ?? destination.lastPathComponent,
@@ -828,6 +833,11 @@ final class DownloadManager: NSObject, ObservableObject {
             $0.lastProgressAt = nil
             $0.resumeData = nil
         }
+        Task {
+            await self.downloadSubtitles(for: id, destination: destination)
+            await self.downloadThumbnail(for: id, destination: destination)
+            await self.saveMetadata(for: id, destination: destination)
+        }
         if AppSettings.notificationsEnabledPreference {
             NotificationCenterService.notifyDownloadFinished(
                 title: tasks.first(where: { $0.id == id })?.title ?? destination.lastPathComponent,
@@ -836,6 +846,101 @@ final class DownloadManager: NSObject, ObservableObject {
         }
         dashTasks[id] = nil
         processQueue()
+    }
+
+    private func downloadSubtitles(for id: UUID, destination: URL) async {
+        guard let item = tasks.first(where: { $0.id == id }),
+              !item.subtitleTracks.isEmpty
+        else { return }
+
+        let basePath = destination.deletingPathExtension().path
+        for track in item.subtitleTracks {
+            guard let url = URL(string: track.url) else { continue }
+            do {
+                var request = URLRequest(url: url)
+                CookieStore.apply(to: &request)
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200..<300).contains(http.statusCode)
+                else { continue }
+
+                let subtitlePath = "\(basePath).\(track.languageCode).vtt"
+                try data.write(to: URL(fileURLWithPath: subtitlePath))
+            } catch {
+                print("Failed to download subtitle \(track.languageCode): \(error)")
+            }
+        }
+    }
+
+    private func downloadThumbnail(for id: UUID, destination: URL) async {
+        guard let item = tasks.first(where: { $0.id == id }) else { return }
+
+        let thumbnailURL: String
+        if let cached = item.thumbnailURL {
+            thumbnailURL = cached
+        } else {
+            guard let sourceURL = item.sourceURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                  let url = URL(string: sourceURL)
+            else { return }
+
+            let extractor = ExtractorManager.shared.extractor(for: url.absoluteString)
+            guard let extractor else { return }
+
+            do {
+                let result = try await extractor.extract(url: url.absoluteString)
+                guard let extracted = result.thumbnailURL else { return }
+                thumbnailURL = extracted
+                update(id) { $0.thumbnailURL = extracted }
+            } catch {
+                return
+            }
+        }
+
+        guard let thumbURL = URL(string: thumbnailURL) else { return }
+
+        do {
+            var request = URLRequest(url: thumbURL)
+            CookieStore.apply(to: &request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode)
+            else { return }
+
+            let thumbPath = destination.deletingPathExtension().path + ".jpg"
+            try data.write(to: URL(fileURLWithPath: thumbPath))
+        } catch {
+            print("Failed to download thumbnail: \(error)")
+        }
+    }
+
+    private func saveMetadata(for id: UUID, destination: URL) async {
+        guard let item = tasks.first(where: { $0.id == id }) else { return }
+        var metadata: [String: Any] = [
+            "title": item.title,
+            "sourceURL": item.sourceURL,
+            "downloadedAt": ISO8601DateFormatter().string(from: Date()),
+            "status": item.status.title,
+        ]
+        if let fileName = item.fileName {
+            metadata["fileName"] = fileName
+        }
+        if let resolvedURL = item.resolvedURL {
+            metadata["resolvedURL"] = resolvedURL
+        }
+        if let finishedAt = item.finishedAt {
+            metadata["finishedAt"] = ISO8601DateFormatter().string(from: finishedAt)
+        }
+        if item.receivedBytes > 0 {
+            metadata["fileSize"] = item.receivedBytes
+        }
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
+            let jsonPath = destination.deletingPathExtension().path + ".info.json"
+            try jsonData.write(to: URL(fileURLWithPath: jsonPath))
+        } catch {
+            print("Failed to save metadata: \(error)")
+        }
     }
 
     private func failDownload(_ id: UUID, message: String) {
@@ -1085,6 +1190,11 @@ extension DownloadManager: URLSessionDownloadDelegate {
                     $0.estimatedRemainingSeconds = nil
                     $0.lastProgressAt = nil
                     $0.resumeData = nil
+                }
+                Task {
+                    await self.downloadSubtitles(for: id, destination: destination)
+                    await self.downloadThumbnail(for: id, destination: destination)
+                    await self.saveMetadata(for: id, destination: destination)
                 }
                 if AppSettings.notificationsEnabledPreference {
                     NotificationCenterService.notifyDownloadFinished(

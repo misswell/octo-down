@@ -66,6 +66,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
     var finishedAt: Date?
     var localPath: String?
     var message: String?
+    var thumbnailURL: String?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -93,6 +94,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
         case finishedAt
         case localPath
         case message
+        case thumbnailURL
     }
 
     init(
@@ -129,6 +131,7 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
         self.lastProgressAt = nil
         self.resumeData = nil
         self.createdAt = Date()
+        self.thumbnailURL = nil
     }
 
     var effectiveArguments: String? {
@@ -181,5 +184,6 @@ struct DownloadTaskItem: Identifiable, Codable, Equatable {
         finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
         localPath = try container.decodeIfPresent(String.self, forKey: .localPath)
         message = try container.decodeIfPresent(String.self, forKey: .message)
+        thumbnailURL = try container.decodeIfPresent(String.self, forKey: .thumbnailURL)
     }
 }
